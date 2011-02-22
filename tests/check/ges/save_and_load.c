@@ -625,6 +625,15 @@ GST_START_TEST (test_keyfile_load)
 
 GST_END_TEST;
 
+GST_START_TEST (test_my_skills)
+{
+  cool ();
+  printf ("cooooooooool\n");
+  fail_unless (1 == 0);
+}
+
+GST_END_TEST;
+
 GST_START_TEST (test_keyfile_identity)
 {
 
@@ -706,6 +715,7 @@ ges_suite (void)
   tcase_add_test (tc_chain, test_keyfile_save);
   tcase_add_test (tc_chain, test_keyfile_load);
   tcase_add_test (tc_chain, test_keyfile_identity);
+  tcase_add_test (tc_chain, test_my_skills);
 
   return s;
 }
