@@ -20,7 +20,7 @@
 
 #ifndef __GES_H__
 #define __GES_H__
-
+#include <stdio.h>
 #include <glib.h>
 #include <gst/gst.h>
 
@@ -63,10 +63,9 @@
 #include <ges/ges-track-audio-transition.h>
 #include <ges/ges-track-effect.h>
 #include <ges/ges-track-parse-launch-effect.h>
-
 #include <ges/ges-formatter.h>
 #include <ges/ges-keyfile-formatter.h>
-
+#include <ges/ges-pitivi-formatter.h>
 #include <ges/ges-utils.h>
 
 G_BEGIN_DECLS

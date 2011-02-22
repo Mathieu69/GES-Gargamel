@@ -25,6 +25,7 @@
 
 #include <gst/gst.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include "ges.h"
 #include "ges-internal.h"
 
