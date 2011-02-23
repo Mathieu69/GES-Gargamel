@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <glib-object.h>
 #include <ges/ges-timeline.h>
+#include <libxml/parser.h>
 
 #define GES_TYPE_PITIVI_FORMATTER ges_pitivi_formatter_get_type()
 
@@ -42,6 +43,8 @@ struct _GESPitiviFormatterClass {
   /* Padding for API extension */
   gpointer _ges_reserved[GES_PADDING];
 };
+
+typedef struct _GESPitiviFormatterPrivate GESPitiviFormatterPrivate;
 
 GType ges_pitivi_formatter_get_type (void);
 
