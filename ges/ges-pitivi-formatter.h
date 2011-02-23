@@ -45,6 +45,6 @@ struct _GESPitiviFormatterClass {
 
 GType ges_pitivi_formatter_get_type (void);
 
-//GESPitiviFormatter *ges_pitivi_formatter_new (void);
+GESPitiviFormatter *ges_pitivi_formatter_new (void);
 
 #endif /* _GES_PITIVI_FORMATTER */

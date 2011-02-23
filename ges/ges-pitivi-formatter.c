@@ -39,3 +39,10 @@ load_pitivi_file (GESFormatter * pitivi_formatter, GESTimeline * timeline)
 {
   return 1;
 }
+
+GESPitiviFormatter *
+ges_pitivi_formatter_new (void)
+{
+  printf ("blobbyblob\n");
+  return g_object_new (GES_TYPE_PITIVI_FORMATTER, NULL);
+}

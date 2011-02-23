@@ -629,6 +629,8 @@ GST_END_TEST;
 
 GST_START_TEST (test_my_skills)
 {
+  GESFormatter *formatter;
+  formatter = GES_FORMATTER (ges_pitivi_formatter_new ());
   printf ("cooooooooool\n");
   fail_unless (1 == 0);
 }
