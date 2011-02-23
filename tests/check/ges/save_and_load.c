@@ -627,7 +627,6 @@ GST_END_TEST;
 
 GST_START_TEST (test_my_skills)
 {
-  cool ();
   printf ("cooooooooool\n");
   fail_unless (1 == 0);
 }

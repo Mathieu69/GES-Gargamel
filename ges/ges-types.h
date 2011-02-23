@@ -122,5 +122,7 @@ typedef struct _GESFormatterClass GESFormatterClass;
 typedef struct _GESKeyfileFormatter GESKeyfileFormatter;
 typedef struct _GESKeyfileFormatterClass GESKeyfileFormatterClass;
 
+typedef struct _GESPitiviFormatter GESPitiviFormatter;
+typedef struct _GESPitiviFormatterClass GESPitiviFormatterClass;
 
 #endif /* __GES_TYPES_H__ */
