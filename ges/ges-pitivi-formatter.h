@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <glib-object.h>
 #include <ges/ges-timeline.h>
-#include <libxml/parser.h>
+#include <libxml/xmlreader.h>
 
 #define GES_TYPE_PITIVI_FORMATTER ges_pitivi_formatter_get_type()
 
@@ -49,5 +49,7 @@ typedef struct _GESPitiviFormatterPrivate GESPitiviFormatterPrivate;
 GType ges_pitivi_formatter_get_type (void);
 
 GESPitiviFormatter *ges_pitivi_formatter_new (void);
+
+
 
 #endif /* _GES_PITIVI_FORMATTER */
