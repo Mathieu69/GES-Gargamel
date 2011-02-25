@@ -630,7 +630,11 @@ GST_END_TEST;
 GST_START_TEST (test_my_skills)
 {
   GESFormatter *formatter;
+  GESTimeline *timeline;
+  gchar uri[] = "/home/mathieu/test2.xptv";
   formatter = GES_FORMATTER (ges_pitivi_formatter_new ());
+  timeline = ges_timeline_new ();
+  ges_formatter_load_from_uri (formatter, timeline, uri);
   printf ("cooooooooool\n");
   fail_unless (1 == 0);
 }
