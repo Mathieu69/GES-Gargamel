@@ -17,6 +17,7 @@ xmlNodePtr get_root_node (xmlDocPtr doc);
 static void print_element_names (xmlNode * a_node, GESTimeline * timeline);
 void list_attributes (xmlNodePtr node, GESTimeline * timeline);
 void create_track (xmlNodePtr node, GESTimeline * timeline);
+gboolean add_to_timeline (GESTrack * track, GESTimeline * timeline);
 
 struct _GESPitiviFormatterPrivate
 {
@@ -104,15 +105,31 @@ create_track (xmlNodePtr node, GESTimeline * timeline)
                   (const xmlChar *) "pitivi.stream.AudioStream"))) {
         gchar type[] = "GES_TRACK_TYPE_AUDIO";
         printf ("%s \n", type);
+        g_value_init (&v, GES_TYPE_TRACK_TYPE);
+        gst_value_deserialize (&v, type);
+        track = ges_track_new (g_value_get_flags (&v), caps);
+        add_to_timeline (track, timeline);
       } else {
         gchar type[] = "GES_TRACK_TYPE_VIDEO";
         printf ("%s \n", type);
         g_value_init (&v, GES_TYPE_TRACK_TYPE);
         gst_value_deserialize (&v, type);
+        track = ges_track_new (g_value_get_flags (&v), caps);
+        add_to_timeline (track, timeline);
       }
     }
   }
-  track = ges_track_new (g_value_get_flags (&v), caps);
+}
+
+gboolean
+add_to_timeline (GESTrack * track, GESTimeline * timeline)
+{
+  if (!ges_timeline_add_track (timeline, track)) {
+    g_object_unref (track);
+    return FALSE;
+  }
+  printf ("YES FAG CAPS LOCK !!!!");
+  return TRUE;
 }
 
 void
