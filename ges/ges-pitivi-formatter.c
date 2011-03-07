@@ -14,10 +14,13 @@ static gboolean load_pitivi_file_from_uri (GESFormatter * pitivi_formatter,
 
 xmlDocPtr create_doc (gchar * uri);
 xmlNodePtr get_root_node (xmlDocPtr doc);
-static void print_element_names (xmlNode * a_node, GESTimeline * timeline);
-void list_attributes (xmlNodePtr node, GESTimeline * timeline);
+static void parse_tracks (xmlNode * a_node, GESTimeline * timeline);
 void create_track (xmlNodePtr node, GESTimeline * timeline);
 gboolean add_to_timeline (GESTrack * track, GESTimeline * timeline);
+static void parse_sources (xmlNode * a_node, GESTimeline * timeline,
+    GESTimelineLayer * layer);
+void create_source (xmlNodePtr node, GESTimeline * timeline,
+    GESTimelineLayer * layer);
 
 struct _GESPitiviFormatterPrivate
 {
@@ -121,6 +124,22 @@ create_track (xmlNodePtr node, GESTimeline * timeline)
   }
 }
 
+void
+create_source (xmlNodePtr node, GESTimeline * timeline,
+    GESTimelineLayer * layer)
+{
+  xmlAttrPtr attr;
+  gchar *converted;
+  GESTimelineObject *src;
+  for (attr = node->properties; NULL != attr; attr = attr->next) {
+    if ((!xmlStrcmp (attr->name, (const xmlChar *) "filename"))) {
+      converted = (gchar *) (xmlGetProp (node, attr->name));
+      src = GES_TIMELINE_OBJECT (ges_timeline_filesource_new (converted));
+      ges_timeline_layer_add_object (layer, src);
+    }
+  }
+}
+
 gboolean
 add_to_timeline (GESTrack * track, GESTimeline * timeline)
 {
@@ -132,29 +151,33 @@ add_to_timeline (GESTrack * track, GESTimeline * timeline)
   return TRUE;
 }
 
-void
-list_attributes (xmlNodePtr node, GESTimeline * timeline)
-{
-  //printf(" %s\n%s\n", attr->name, xmlGetProp(node, attr->name));
-  if ((!xmlStrcmp (node->name, (const xmlChar *) "stream")) &&
-      (!xmlStrcmp (node->parent->name, (const xmlChar *) "track"))) {
-    //printf ("ben voila");
-    //printf(" %s\n%s\n", attr->name, xmlGetProp(node, attr->name));
-    create_track (node, timeline);
-  }
-}
-
 static void
-print_element_names (xmlNode * a_node, GESTimeline * timeline)
+parse_tracks (xmlNode * a_node, GESTimeline * timeline)
 {
   xmlNode *cur_node = NULL;
 
   for (cur_node = a_node; cur_node; cur_node = cur_node->next) {
-    if (cur_node->type == XML_ELEMENT_NODE) {
+    if ((!xmlStrcmp (cur_node->name, (const xmlChar *) "stream")) &&
+        (!xmlStrcmp (cur_node->parent->name, (const xmlChar *) "track"))) {
       printf ("node type: Element, name: %s\n", cur_node->name);
-      list_attributes (cur_node, timeline);
+      create_track (cur_node, timeline);
     }
-    print_element_names (cur_node->children, timeline);
+    parse_tracks (cur_node->children, timeline);
+  }
+}
+
+static void
+parse_sources (xmlNode * a_node, GESTimeline * timeline,
+    GESTimelineLayer * layer)
+{
+  xmlNode *cur_node = NULL;
+
+  for (cur_node = a_node; cur_node; cur_node = cur_node->next) {
+    if ((!xmlStrcmp (cur_node->name, (const xmlChar *) "source"))) {
+      printf ("node type: Element, name: %s\n", cur_node->name);
+      create_source (cur_node, timeline, layer);
+    }
+    parse_sources (cur_node->children, timeline, layer);
   }
 }
 
@@ -164,9 +187,13 @@ load_pitivi_file_from_uri (GESFormatter * pitivi_formatter,
 {
   xmlDocPtr doc;
   xmlNodePtr root_node;
+  GESTimelineLayer *layer;
+  layer = GES_TIMELINE_LAYER (ges_timeline_layer_new ());
+  ges_timeline_add_layer (timeline, layer);
   doc = create_doc (uri);
   root_node = get_root_node (doc);
-  print_element_names (root_node, timeline);
+  parse_tracks (root_node, timeline);
+  parse_sources (root_node, timeline, layer);
   printf ("biatch\n%s\n", uri);
   return TRUE;
 }
