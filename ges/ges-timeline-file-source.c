@@ -222,24 +222,24 @@ ges_timeline_filesource_init (GESTimelineFileSource * self)
 void
 ges_timeline_filesource_set_mute (GESTimelineFileSource * self, gboolean mute)
 {
-  GList *tmp, *trackobjects;
-  GESTimelineObject *object = (GESTimelineObject *) self;
+  //GList *tmp, *trackobjects;
+  //GESTimelineObject *object = (GESTimelineObject *) self;
 
   GST_DEBUG ("self:%p, mute:%d", self, mute);
 
   self->priv->mute = mute;
 
   /* Go over tracked objects, and update 'active' status on all audio objects */
-  trackobjects = ges_timeline_object_get_track_objects (object);
-  for (tmp = trackobjects; tmp; tmp = tmp->next) {
-    GESTrackObject *trackobject = (GESTrackObject *) tmp->data;
+  //trackobjects = ges_timeline_object_get_track_objects (object);
+  //for (tmp = trackobjects; tmp; tmp = tmp->next) {
+  //GESTrackObject *trackobject = (GESTrackObject *) tmp->data;
 
-    if (ges_track_object_get_track (trackobject)->type == GES_TRACK_TYPE_AUDIO)
-      ges_track_object_set_active (trackobject, !mute);
+  //if (ges_track_object_get_track (trackobject)->type == GES_TRACK_TYPE_AUDIO)
+  //ges_track_object_set_active (trackobject, !mute);
 
-    g_object_unref (GES_TRACK_OBJECT (tmp->data));
-  }
-  g_list_free (trackobjects);
+  //g_object_unref (GES_TRACK_OBJECT (tmp->data));
+  //}
+  //g_list_free (trackobjects);
 }
 
 /**
