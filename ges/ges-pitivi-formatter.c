@@ -22,7 +22,7 @@ static void parse_sources (xmlNode * a_node, GESTimeline * timeline,
     GESTimelineLayer * layer);
 void create_source (xmlNodePtr node, GESTimeline * timeline,
     GESTimelineLayer * layer);
-void add_track_objects (GESTimelineObject * src, xmlNodePtr node,
+void add_track_objects (GESTimelineFileSource * src, xmlNodePtr node,
     xmlChar * ref);
 void set_properties (GESTimelineObject * src, xmlNodePtr cur_node,
     gchar * prop_name);
@@ -32,6 +32,8 @@ struct _GESPitiviFormatterPrivate
   gchar *bin_description;
 };
 
+GESTimelineFileSource *layer_sources_list[50];
+int i = 0;
 GESTrack *timeline_tracks_list[2];
 int k = 0;
 
@@ -148,16 +150,20 @@ create_source (xmlNodePtr node, GESTimeline * timeline,
       ref = xmlGetProp (node, (const xmlChar *) "id");
       printf ("%s id\n", ref);
       src = ges_timeline_filesource_new (converted);
+      layer_sources_list[i] = src;
+      i++;
       ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (src));
-      add_track_objects (GES_TIMELINE_OBJECT (src), node->parent->parent, ref);
-      printf ("%s\n", attr->name);
       ges_timeline_filesource_set_mute (src, TRUE);
+      ges_timeline_filesource_set_blind (src, TRUE);
+      printf ("blinded and muted");
+      add_track_objects (src, node->parent->parent, ref);
+      printf ("%s\n", attr->name);
     }
   }
 }
 
 void
-add_track_objects (GESTimelineObject * src, xmlNodePtr node, xmlChar * ref)
+add_track_objects (GESTimelineFileSource * src, xmlNodePtr node, xmlChar * ref)
 {
   xmlNode *cur_node = NULL;
   for (cur_node = node; cur_node; cur_node = cur_node->next) {
@@ -169,10 +175,23 @@ add_track_objects (GESTimelineObject * src, xmlNodePtr node, xmlChar * ref)
               (const xmlChar *) "pitivi.stream.VideoStream")) {
         if (!xmlStrcmp (xmlGetProp (cur_node, (const xmlChar *) "id"), ref)) {
           printf ("%s de merde", xmlGetProp (cur_node, (const xmlChar *) "id"));
-          set_properties (src, cur_node, (gchar *) "in_point");
-          set_properties (src, cur_node, (gchar *) "start");
-          set_properties (src, cur_node, (gchar *) "duration");
-          set_properties (src, cur_node, (gchar *) "priority");
+          ges_timeline_filesource_set_blind (src, FALSE);
+          printf ("unblinded");
+          set_properties (GES_TIMELINE_OBJECT (src), cur_node,
+              (gchar *) "in_point");
+          set_properties (GES_TIMELINE_OBJECT (src), cur_node,
+              (gchar *) "start");
+          set_properties (GES_TIMELINE_OBJECT (src), cur_node,
+              (gchar *) "duration");
+          set_properties (GES_TIMELINE_OBJECT (src), cur_node,
+              (gchar *) "priority");
+        }
+      } else if (!xmlStrcmp (xmlGetProp (cur_node->parent->parent->prev->prev,
+                  (const xmlChar *) "type"),
+              (const xmlChar *) "pitivi.stream.AudioStream")) {
+        if (!xmlStrcmp (xmlGetProp (cur_node, (const xmlChar *) "id"), ref)) {
+          printf ("unmuted");
+          ges_timeline_filesource_set_mute (src, FALSE);
         }
       }
     }

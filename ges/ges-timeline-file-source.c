@@ -32,6 +32,7 @@
 #include "ges-track-filesource.h"
 #include "ges-track-image-source.h"
 #include "ges-track-audio-test-source.h"
+#include "stdio.h"
 
 G_DEFINE_TYPE (GESTimelineFileSource, ges_timeline_filesource,
     GES_TYPE_TIMELINE_SOURCE);
@@ -41,6 +42,7 @@ struct _GESTimelineFileSourcePrivate
   gchar *uri;
 
   gboolean mute;
+  gboolean blind;
   gboolean is_image;
 
   guint64 maxduration;
@@ -56,6 +58,7 @@ enum
   PROP_URI,
   PROP_MAX_DURATION,
   PROP_MUTE,
+  PROP_BLIND,
   PROP_SUPPORTED_FORMATS,
   PROP_IS_IMAGE,
 };
@@ -77,6 +80,9 @@ ges_timeline_filesource_get_property (GObject * object, guint property_id,
       break;
     case PROP_MUTE:
       g_value_set_boolean (value, priv->mute);
+      break;
+    case PROP_BLIND:
+      g_value_set_boolean (value, priv->blind);
       break;
     case PROP_MAX_DURATION:
       g_value_set_uint64 (value, priv->maxduration);
@@ -104,6 +110,9 @@ ges_timeline_filesource_set_property (GObject * object, guint property_id,
       break;
     case PROP_MUTE:
       ges_timeline_filesource_set_mute (tfs, g_value_get_boolean (value));
+      break;
+    case PROP_BLIND:
+      ges_timeline_filesource_set_blind (tfs, g_value_get_boolean (value));
       break;
     case PROP_MAX_DURATION:
       ges_timeline_filesource_set_max_duration (tfs,
@@ -176,6 +185,15 @@ ges_timeline_filesource_class_init (GESTimelineFileSourceClass * klass)
           FALSE, G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
 
   /**
+   * GESTimelineFileSource:blind:
+   *
+   * Whether the video will be played or not.
+   */
+  g_object_class_install_property (object_class, PROP_BLIND,
+      g_param_spec_boolean ("blind", "Blind", "Blind audio track",
+          FALSE, G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
+
+  /**
    * GESTimelineFileSource:supported-formats:
    *
    * Whether the sound will be played or not.
@@ -222,24 +240,55 @@ ges_timeline_filesource_init (GESTimelineFileSource * self)
 void
 ges_timeline_filesource_set_mute (GESTimelineFileSource * self, gboolean mute)
 {
-  //GList *tmp, *trackobjects;
-  //GESTimelineObject *object = (GESTimelineObject *) self;
+  GList *tmp, *trackobjects;
+  GESTimelineObject *object = (GESTimelineObject *) self;
 
   GST_DEBUG ("self:%p, mute:%d", self, mute);
 
   self->priv->mute = mute;
 
   /* Go over tracked objects, and update 'active' status on all audio objects */
-  //trackobjects = ges_timeline_object_get_track_objects (object);
-  //for (tmp = trackobjects; tmp; tmp = tmp->next) {
-  //GESTrackObject *trackobject = (GESTrackObject *) tmp->data;
+  trackobjects = ges_timeline_object_get_track_objects (object);
+  for (tmp = trackobjects; tmp; tmp = tmp->next) {
+    GESTrackObject *trackobject = (GESTrackObject *) tmp->data;
 
-  //if (ges_track_object_get_track (trackobject)->type == GES_TRACK_TYPE_AUDIO)
-  //ges_track_object_set_active (trackobject, !mute);
+    if (ges_track_object_get_track (trackobject)->type == GES_TRACK_TYPE_AUDIO)
+      ges_track_object_set_active (trackobject, !mute);
 
-  //g_object_unref (GES_TRACK_OBJECT (tmp->data));
-  //}
-  //g_list_free (trackobjects);
+    g_object_unref (GES_TRACK_OBJECT (tmp->data));
+  }
+  g_list_free (trackobjects);
+}
+
+/**
+ * ges_timeline_filesource_set_blind:
+ * @self: the #GESTimelineFileSource on which to blind or unblind the video track
+ * @blind: %TRUE to blind @self video track, %FALSE to unblind it
+ *
+ * Sets whether the video track of this timeline object is blinded or not.
+ *
+ */
+void
+ges_timeline_filesource_set_blind (GESTimelineFileSource * self, gboolean blind)
+{
+  GList *tmp, *trackobjects;
+  GESTimelineObject *object = (GESTimelineObject *) self;
+
+  GST_DEBUG ("self:%p, blind:%d", self, blind);
+
+  self->priv->blind = blind;
+
+  /* Go over tracked objects, and update 'active' status on all video objects */
+  trackobjects = ges_timeline_object_get_track_objects (object);
+  for (tmp = trackobjects; tmp; tmp = tmp->next) {
+    GESTrackObject *trackobject = (GESTrackObject *) tmp->data;
+
+    if (ges_track_object_get_track (trackobject)->type == GES_TRACK_TYPE_VIDEO)
+      ges_track_object_set_active (trackobject, !blind);
+
+    g_object_unref (GES_TRACK_OBJECT (tmp->data));
+  }
+  g_list_free (trackobjects);
 }
 
 /**
@@ -299,12 +348,26 @@ ges_timeline_filesource_set_is_image (GESTimelineFileSource * self,
  *
  * Lets you know if the audio track of @self is muted or not.
  *
- * Returns: %TRUE if the audio track of @self is muted, %FALSE otherwize.
+ * Returns: %TRUE if the audio track of @self is muted, %FALSE otherwise.
  */
 gboolean
 ges_timeline_filesource_is_muted (GESTimelineFileSource * self)
 {
   return self->priv->mute;
+}
+
+/**
+ * ges_timeline_filesource_is_muted:
+ * @self: the #GESTimelineFileSource 
+ *
+ * Lets you know if the video track of @self is blinded or not.
+ *
+ * Returns: %TRUE if the audio track of @self is blinded, %FALSE otherwise.
+ */
+gboolean
+ges_timeline_filesource_is_blinded (GESTimelineFileSource * self)
+{
+  return self->priv->blind;
 }
 
 /**
@@ -387,12 +450,17 @@ ges_timeline_filesource_create_track_object (GESTimelineObject * obj,
 
   else {
     GST_DEBUG ("Creating a GESTrackFileSource");
+    printf ("ok c'est la\n");
 
     /* FIXME : Implement properly ! */
     res = (GESTrackObject *) ges_track_filesource_new (priv->uri);
 
-    /* If mute and track is audio, deactivate the track object */
+    /* If mute and track is audio, deactivate the track object.. */
     if (track->type == GES_TRACK_TYPE_AUDIO && priv->mute)
+      ges_track_object_set_active (res, FALSE);
+
+    /* If blind and track is video, deactivate the track object.. */
+    if (track->type == GES_TRACK_TYPE_VIDEO && priv->blind)
       ges_track_object_set_active (res, FALSE);
   }
 
