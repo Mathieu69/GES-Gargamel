@@ -205,7 +205,6 @@ create_track (GKeyFile * kf, gchar * group, GESTimeline * timeline)
 
   if (!(type_field = g_key_file_get_value (kf, group, "type", NULL)))
     return FALSE;
-  printf ("Glopyglop %s\n", type_field);
 
   g_value_init (&v, GES_TYPE_TRACK_TYPE);
   res = gst_value_deserialize (&v, type_field);
@@ -213,7 +212,6 @@ create_track (GKeyFile * kf, gchar * group, GESTimeline * timeline)
 
   if (!caps || !res)
     return FALSE;
-  printf ("%u sdgsdfgrdqsgq\n", g_value_get_flags (&v));
   track = ges_track_new (g_value_get_flags (&v), caps);
 
   if (!ges_timeline_add_track (timeline, track)) {
