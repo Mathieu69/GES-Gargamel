@@ -357,7 +357,7 @@ ges_timeline_filesource_is_muted (GESTimelineFileSource * self)
 }
 
 /**
- * ges_timeline_filesource_is_muted:
+ * ges_timeline_filesource_is_blinded:
  * @self: the #GESTimelineFileSource 
  *
  * Lets you know if the video track of @self is blinded or not.

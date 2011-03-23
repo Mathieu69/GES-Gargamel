@@ -20,6 +20,15 @@
 #include <ges/ges.h>
 #include <gst/check/gstcheck.h>
 #include <string.h>
+#include <stdio.h>
+#ifdef WINDOWS
+#include <direct.h>
+#define GetCurrentDir _getcwd
+#else
+#include <unistd.h>
+#define GetCurrentDir getcwd
+#endif
+
 
 #define KEY_FILE_START {\
   if (cmp) g_key_file_free (cmp);\
@@ -314,7 +323,6 @@ ges_objs_equal (GObject * a, GObject * b)
 
       a_str = gst_value_serialize (&av);
       b_str = gst_value_serialize (&bv);
-
       CMP_FAIL (b, "%s's %p and %p differ by property %s (%s != %s)",
           typename, a, b, (*iter)->name, a_str, b_str);
 
@@ -630,13 +638,88 @@ GST_END_TEST;
 GST_START_TEST (test_my_skills)
 {
   GESFormatter *formatter;
-  GESTimeline *timeline;
-  gchar uri[] = "/home/mathieu/pute.xptv";
+  GESTimeline *timeline, *expected;
+  GValue va = { 0 };
+  GValue vv = { 0 };
+  GstCaps *caps = { 0 };
+  GESTrack *tracka = NULL;
+  GESTrack *trackv = NULL;
+  char cCurrentPath[FILENAME_MAX];
+  char *a;
+  gchar uri[] = "/home/mathieu/hack/gst-editing-services/tests/check/test.xptv";
+  gchar *caps_fielda, *caps_fieldv;
+  gchar type_fielda[] = "GES_TRACK_TYPE_AUDIO";
+  gchar type_fieldv[] = "GES_TRACK_TYPE_VIDEO";
+  GESTimelineLayer *layer;
+  GESTimelineTestSource *testsrca, *testsrcb;
+  GESTimelineStandardTransition *tr;
+
+  /*create the expected timeline */
+  expected = ges_timeline_new ();
+
+  /* create the tracks */
+  caps_fieldv = (gchar *)
+      "video/x-raw-yuv, width=(int)720, height=(int)576, pixel-aspect-ratio=(fraction)16/15, framerate=(fraction)25/1; video/x-raw-rgb, width=(int)720, height=(int)576, pixel-aspect-ratio=(fraction)16/15, framerate=(fraction)25/1";
+
+  g_value_init (&vv, GES_TYPE_TRACK_TYPE);
+  gst_value_deserialize (&vv, type_fieldv);
+  caps = gst_caps_from_string (caps_fieldv);
+  trackv = ges_track_new (g_value_get_flags (&vv), caps);
+  ges_timeline_add_track (expected, trackv);
+
+  caps_fielda = (gchar *)
+      "audio/x-raw-int, rate=(int)44100, channels=(int)2; audio/x-raw-float, rate=(int)44100, channels=(int)2";
+
+  g_value_init (&va, GES_TYPE_TRACK_TYPE);
+  gst_value_deserialize (&va, type_fielda);
+  caps = gst_caps_from_string (caps_fielda);
+  tracka = ges_track_new (g_value_get_flags (&va), caps);
+  ges_timeline_add_track (expected, tracka);
+
+  /* create the layer */
+  layer = GES_TIMELINE_LAYER (ges_simple_timeline_layer_new ());
+  g_object_set (layer, "priority", (gint32) 0, NULL);
+
+  ges_timeline_add_layer (expected, layer);
+
+  /* create the sources */
+  testsrca = ges_timeline_test_source_new ();
+  ges_timeline_test_source_set_vpattern (testsrca, GES_VIDEO_TEST_PATTERN_RED);
+  g_object_set (testsrca, "volume", (gdouble) 1, "freq", (gdouble) 880,
+      "duration", (gint64) 2500000000LL, "start", (gint64) 0LL, "in_point",
+      (gint64) 0LL, "priority", (gint64) 0LL, NULL);
+
+  testsrcb = ges_timeline_test_source_new ();
+  g_object_set (testsrcb, "volume", (gdouble) 1, "duration",
+      (gint64) 2500000000LL, "start", (gint64) 1200000000LL, "in_point",
+      (gint64) 0LL, "priority", (gint64) 0LL, NULL);
+
+  tr = ges_timeline_standard_transition_new_for_nick ((char *) "crossfade");
+  g_object_set (tr,
+      "start", (gint64) 1200000000LL,
+      "duration", (gint64) 1300000000LL, "in-point", (gint64) 0, NULL);
+
+  ges_simple_timeline_layer_add_object (GES_SIMPLE_TIMELINE_LAYER (layer),
+      GES_TIMELINE_OBJECT (testsrca), -1);
+  ges_simple_timeline_layer_add_object (GES_SIMPLE_TIMELINE_LAYER (layer),
+      GES_TIMELINE_OBJECT (tr), -1);
+  ges_simple_timeline_layer_add_object (GES_SIMPLE_TIMELINE_LAYER (layer),
+      GES_TIMELINE_OBJECT (testsrcb), -1);
+
+  /* create the timeline from formatter */
   formatter = GES_FORMATTER (ges_pitivi_formatter_new ());
   timeline = ges_timeline_new ();
+  a = GetCurrentDir (cCurrentPath, sizeof (cCurrentPath));
+
+  printf ("The current working directory is %s", a);
+
   ges_formatter_load_from_uri (formatter, timeline, uri);
-  printf ("cooooooooool\n");
-  fail_unless (1 == 0);
+  /* compare the two timelines and fail test if they are different */
+  TIMELINE_COMPARE (timeline, expected);
+  /*tear-down */
+  g_object_unref (formatter);
+  g_object_unref (timeline);
+  g_object_unref (expected);
 }
 
 GST_END_TEST;
@@ -693,9 +776,11 @@ GST_START_TEST (test_keyfile_identity)
           "freq", (gdouble) 600,
           "volume", 1.0, "vpattern", GES_VIDEO_TEST_PATTERN_RED);
 
-    } LAYER_END;
+    }
+    LAYER_END;
 
-  } TIMELINE_END;
+  }
+  TIMELINE_END;
 
   serialized = ges_timeline_new ();
 
