@@ -44,6 +44,8 @@ struct _GESTimelineFileSourcePrivate
   gboolean mute;
   gboolean blind;
   gboolean is_image;
+  gboolean audio_only;
+  gboolean video_only;
 
   guint64 maxduration;
 
@@ -58,6 +60,8 @@ enum
   PROP_URI,
   PROP_MAX_DURATION,
   PROP_MUTE,
+  PROP_AUDIO_ONLY,
+  PROP_VIDEO_ONLY,
   PROP_BLIND,
   PROP_SUPPORTED_FORMATS,
   PROP_IS_IMAGE,
@@ -80,6 +84,12 @@ ges_timeline_filesource_get_property (GObject * object, guint property_id,
       break;
     case PROP_MUTE:
       g_value_set_boolean (value, priv->mute);
+      break;
+    case PROP_AUDIO_ONLY:
+      g_value_set_boolean (value, priv->audio_only);
+      break;
+    case PROP_VIDEO_ONLY:
+      g_value_set_boolean (value, priv->video_only);
       break;
     case PROP_BLIND:
       g_value_set_boolean (value, priv->blind);
@@ -110,6 +120,12 @@ ges_timeline_filesource_set_property (GObject * object, guint property_id,
       break;
     case PROP_MUTE:
       ges_timeline_filesource_set_mute (tfs, g_value_get_boolean (value));
+      break;
+    case PROP_AUDIO_ONLY:
+      ges_timeline_filesource_set_audio_only (tfs, g_value_get_boolean (value));
+      break;
+    case PROP_VIDEO_ONLY:
+      ges_timeline_filesource_set_video_only (tfs, g_value_get_boolean (value));
       break;
     case PROP_BLIND:
       ges_timeline_filesource_set_blind (tfs, g_value_get_boolean (value));
@@ -182,6 +198,26 @@ ges_timeline_filesource_class_init (GESTimelineFileSourceClass * klass)
    */
   g_object_class_install_property (object_class, PROP_MUTE,
       g_param_spec_boolean ("mute", "Mute", "Mute audio track",
+          FALSE, G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
+
+  /**
+   * GESTimelineFileSource:audio_only:
+   *
+   * Whether the video track object will be added or not.
+   */
+  g_object_class_install_property (object_class, PROP_AUDIO_ONLY,
+      g_param_spec_boolean ("audio only", "Audio Only",
+          "prevent creation of video track object",
+          FALSE, G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
+
+  /**
+   * GESTimelineFileSource:video_only:
+   *
+   * Whether the audio track object will be added or not.
+   */
+  g_object_class_install_property (object_class, PROP_VIDEO_ONLY,
+      g_param_spec_boolean ("video only", "Video Only",
+          "prevent creation of audio track object",
           FALSE, G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
 
   /**
@@ -258,6 +294,38 @@ ges_timeline_filesource_set_mute (GESTimelineFileSource * self, gboolean mute)
     g_object_unref (GES_TRACK_OBJECT (tmp->data));
   }
   g_list_free (trackobjects);
+}
+
+/**
+ * ges_timeline_filesource_set_audio_only:
+ * @self: the #GESTimelineFileSource on which to prevent the creation
+ * of the video track object
+ * @mute: %TRUE to prevent creation, %FALSE to let it be
+ *
+ * Sets whether the video track object of this timeline object is created or not.
+ *
+ */
+void
+ges_timeline_filesource_set_audio_only (GESTimelineFileSource * self,
+    gboolean audio_only)
+{
+  self->priv->audio_only = audio_only;
+}
+
+/**
+ * ges_timeline_filesource_set_video_only:
+ * @self: the #GESTimelineFileSource on which to prevent the creation
+ * of the audio track object
+ * @mute: %TRUE to prevent creation, %FALSE to let it be
+ *
+ * Sets whether the audio track object of this timeline object is created or not.
+ *
+ */
+void
+ges_timeline_filesource_set_video_only (GESTimelineFileSource * self,
+    gboolean video_only)
+{
+  self->priv->video_only = video_only;
 }
 
 /**
@@ -459,9 +527,15 @@ ges_timeline_filesource_create_track_object (GESTimelineObject * obj,
     if (track->type == GES_TRACK_TYPE_AUDIO && priv->mute)
       ges_track_object_set_active (res, FALSE);
 
+    if (track->type == GES_TRACK_TYPE_AUDIO && priv->video_only)
+      res = NULL;
+
     /* If blind and track is video, deactivate the track object.. */
     if (track->type == GES_TRACK_TYPE_VIDEO && priv->blind)
       ges_track_object_set_active (res, FALSE);
+
+    if (track->type == GES_TRACK_TYPE_VIDEO && priv->audio_only)
+      res = NULL;
   }
 
   return res;

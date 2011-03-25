@@ -96,6 +96,8 @@ ges_timeline_filesource_set_is_image (GESTimelineFileSource * self,
 
 gboolean ges_timeline_filesource_is_muted (GESTimelineFileSource * self);
 gboolean ges_timeline_filesource_is_blinded (GESTimelineFileSource * self);
+void ges_timeline_filesource_set_video_only (GESTimelineFileSource * self, gboolean video_only);
+void ges_timeline_filesource_set_audio_only (GESTimelineFileSource * self, gboolean audio_only);
 guint64 ges_timeline_filesource_get_max_duration (GESTimelineFileSource * self);
 gboolean ges_timeline_filesource_is_image (GESTimelineFileSource * self);
 const gchar *ges_timeline_filesource_get_uri (GESTimelineFileSource * self);

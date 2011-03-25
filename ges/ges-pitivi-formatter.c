@@ -28,7 +28,8 @@ GHashTable *parse_timeline_objects (GHashTable * sources_table,
     xmlXPathContextPtr xpathCtx);
 void set_source_properties (GObject * src, GHashTable * table,
     GESTimelineLayer * layer);
-void make_transition (GESTimelineLayer * layer, gint64 start, gint64 prev_end);
+void make_transition (GESTimelineLayer * layer, gint64 start, gint64 prev_end,
+    gchar * type);
 
 struct _GESPitiviFormatterPrivate
 {
@@ -149,7 +150,7 @@ parse_track_objects (GList * list)
   xmlChar *type;
   gchar *mode, *filename;
   gint64 start, duration, inpoint, end;
-  gint64 prev_end = 0;
+  gint64 prev_end = 0, prev_video_end = 0, prev_audio_end = 0;
   xmlXPathContextPtr xpathCtx = g_list_first (list)->data;
   GESTimelineLayer *layer = g_list_next (list)->data;
   GHashTable *sources_table = g_list_last (list)->data;
@@ -196,15 +197,33 @@ parse_track_objects (GList * list)
       }
       end = duration + start;
       if (start < prev_end) {
-        make_transition (layer, start, prev_end);
+        make_transition (layer, start, prev_end, (gchar *) "standard");
+      } else if (start < prev_video_end) {
+        make_transition (layer, start, prev_video_end, (gchar *) "video");
+      } else if (start < prev_audio_end) {
+        make_transition (layer, start, prev_audio_end, (gchar *) "audio");
       }
       prev_end = end;
     } else if (!xmlStrcmp (type, (xmlChar *) "pitivi.stream.VideoStream")) {
       src = ges_timeline_filesource_new (filename);
-      ges_timeline_filesource_set_mute (src, TRUE);
+      ges_timeline_filesource_set_video_only (src, TRUE);
+      end = duration + start;
+      if (start < prev_video_end) {
+        make_transition (layer, start, prev_video_end, (gchar *) "video");
+      } else if (start < prev_end) {
+        make_transition (layer, start, prev_end, (gchar *) "video");
+      }
+      prev_video_end = end;
     } else {
       src = ges_timeline_filesource_new (filename);
-      ges_timeline_filesource_set_blind (src, TRUE);
+      ges_timeline_filesource_set_audio_only (src, TRUE);
+      end = duration + start;
+      if (start < prev_audio_end) {
+        make_transition (layer, start, prev_audio_end, (gchar *) "audio");
+      } else if (start < prev_end) {
+        make_transition (layer, start, prev_end, (gchar *) "audio");
+      }
+      prev_audio_end = end;
     }
     if (!g_strcmp0 (filename, (gchar *) "test")
         || !g_strcmp0 (filename, (gchar *) "test2")) {
@@ -217,14 +236,20 @@ parse_track_objects (GList * list)
 }
 
 void
-make_transition (GESTimelineLayer * layer, gint64 start, gint64 prev_end)
+make_transition (GESTimelineLayer * layer, gint64 start, gint64 prev_end,
+    gchar * type)
 {
   GESTimelineStandardTransition *tr;
 
   tr = ges_timeline_standard_transition_new_for_nick ((char *) "crossfade");
-  g_object_set (tr,
-      "start", (gint64) start,
-      "duration", (gint64) prev_end - start, "in-point", (gint64) 0, NULL);
+  if (!g_strcmp0 (type, (gchar *) "video"))
+    ges_timeline_standard_transition_set_video_only (GES_TIMELINE_OBJECT (tr),
+        TRUE);
+  else if (!g_strcmp0 (type, (gchar *) "audio"))
+    ges_timeline_standard_transition_set_audio_only (GES_TIMELINE_OBJECT (tr),
+        TRUE);
+  g_object_set (tr, "start", (gint64) start, "duration",
+      (gint64) prev_end - start, "in-point", (gint64) 0, NULL);
   ges_simple_timeline_layer_add_object (GES_SIMPLE_TIMELINE_LAYER (layer),
       GES_TIMELINE_OBJECT (tr), -1);
 }

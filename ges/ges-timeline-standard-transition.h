@@ -82,6 +82,8 @@ GType ges_timeline_standard_transition_get_type (void);
 
 GESTimelineStandardTransition *ges_timeline_standard_transition_new (GESVideoStandardTransitionType vtype);
 GESTimelineStandardTransition *ges_timeline_standard_transition_new_for_nick (char *nick);
+void ges_timeline_standard_transition_set_video_only (GESTimelineObject * self, gboolean video_only);
+void ges_timeline_standard_transition_set_audio_only (GESTimelineObject * self, gboolean audio_only);
 
 G_END_DECLS
 
