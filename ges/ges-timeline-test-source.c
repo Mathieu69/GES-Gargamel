@@ -34,6 +34,7 @@
 #include "ges-track-video-test-source.h"
 #include "ges-track-audio-test-source.h"
 #include <string.h>
+#include <stdio.h>
 
 G_DEFINE_TYPE (GESTimelineTestSource, ges_timeline_test_source,
     GES_TYPE_TIMELINE_SOURCE);

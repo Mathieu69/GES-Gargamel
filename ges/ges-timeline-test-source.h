@@ -92,7 +92,6 @@ void
 ges_timeline_test_source_set_volume (GESTimelineTestSource * self,
     gdouble volume);
 
-
 GESVideoTestPattern
 ges_timeline_test_source_get_vpattern (GESTimelineTestSource * self);
 

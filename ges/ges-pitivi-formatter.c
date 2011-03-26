@@ -250,8 +250,7 @@ make_transition (GESTimelineLayer * layer, gint64 start, gint64 prev_end,
         TRUE);
   g_object_set (tr, "start", (gint64) start, "duration",
       (gint64) prev_end - start, "in-point", (gint64) 0, NULL);
-  ges_simple_timeline_layer_add_object (GES_SIMPLE_TIMELINE_LAYER (layer),
-      GES_TIMELINE_OBJECT (tr), -1);
+  ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (tr));
 }
 
 void
@@ -264,20 +263,20 @@ set_source_properties (GObject * src, GHashTable * table,
       (gchar *) g_hash_table_lookup (table, (gchar *) "duration"));
   set_property (src, (gchar *) "in_point",
       (gchar *) g_hash_table_lookup (table, (gchar *) "in_point"));
-  set_property (src, (gchar *) "priority",
-      (gchar *) g_hash_table_lookup (table, (gchar *) "priority"));
-  ges_simple_timeline_layer_add_object (GES_SIMPLE_TIMELINE_LAYER (layer),
-      GES_TIMELINE_OBJECT (src), -1);
+  ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (src));
 }
 
 void
 set_property (GObject * src, gchar * prop_name, gchar * prop_value)
 {
   gint64 converted;
+  gint64 real;
   prop_value = g_strsplit (prop_value, (gchar *) ")", (gint) 0)[1];
   converted = g_ascii_strtoll ((gchar *) prop_value, NULL, 0);
   printf ("prop : %s had been set to : %lld\n", prop_name, converted);
   g_object_set (src, prop_name, converted, NULL);
+  g_object_get (src, prop_name, &real, NULL);
+  printf ("the real value is : %lld\n", real);
 }
 
 GHashTable *
@@ -375,7 +374,7 @@ load_pitivi_file_from_uri (GESFormatter * pitivi_formatter,
   GHashTable *source_table;
   GList *list = NULL;
 
-  layer = GES_TIMELINE_LAYER (ges_simple_timeline_layer_new ());
+  layer = ges_timeline_layer_new ();
   g_object_set (layer, "priority", (gint32) 0, NULL);
   ges_timeline_add_layer (timeline, layer);
   doc = create_doc (uri);
@@ -391,7 +390,6 @@ load_pitivi_file_from_uri (GESFormatter * pitivi_formatter,
   list = g_list_append (list, layer);
   list = g_list_append (list, source_table);
   parse_track_objects (list);
-
 freedoc:
   xmlFreeDoc (doc);
   return ret;
