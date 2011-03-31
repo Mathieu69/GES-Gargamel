@@ -646,7 +646,7 @@ GST_START_TEST (transition_test)
   GESTrack *trackv = NULL;
   char cCurrentPath[FILENAME_MAX];
   char *a;
-  gchar uri[] = "/home/mathieu/hack/gst-editing-services/tests/check/test.xptv";
+  gchar *uri;
   gchar *caps_fielda, *caps_fieldv;
   gchar type_fielda[] = "GES_TRACK_TYPE_AUDIO";
   gchar type_fieldv[] = "GES_TRACK_TYPE_VIDEO";
@@ -707,8 +707,7 @@ GST_START_TEST (transition_test)
   formatter = GES_FORMATTER (ges_pitivi_formatter_new ());
   timeline = ges_timeline_new ();
   a = GetCurrentDir (cCurrentPath, sizeof (cCurrentPath));
-
-  printf ("The current working directory is %s", a);
+  uri = g_strconcat (a, "/test.xptv", NULL);
 
   ges_formatter_load_from_uri (formatter, timeline, uri);
   /* compare the two timelines and fail test if they are different */
@@ -717,55 +716,6 @@ GST_START_TEST (transition_test)
   g_object_unref (formatter);
   g_object_unref (timeline);
   g_object_unref (expected);
-}
-
-GST_END_TEST;
-
-GST_START_TEST (test_start)
-{
-  GESTimeline *timeline;
-  GESTrack *tracka = NULL;
-  GESTrack *trackv = NULL;
-  GESTimelineLayer *layer;
-  GESTimelineTestSource *testsrca;
-  GMainLoop *mainloop;
-  GESTimelinePipeline *pipeline;
-
-  /*create the expected timeline */
-  timeline = ges_timeline_new ();
-  pipeline = ges_timeline_pipeline_new ();
-  mainloop = g_main_loop_new (NULL, FALSE);
-
-  /* create the tracks */
-
-  trackv = ges_track_video_raw_new ();
-  ges_timeline_add_track (timeline, trackv);
-
-  tracka = ges_track_audio_raw_new ();
-  ges_timeline_add_track (timeline, tracka);
-
-  /* create the layer */
-  layer = ges_timeline_layer_new ();
-  g_object_set (layer, "priority", (gint32) 0, NULL);
-
-  ges_timeline_add_layer (timeline, layer);
-
-  /* create the sources */
-  testsrca = ges_timeline_test_source_new ();
-  g_object_set (testsrca, "volume", (gdouble) 1, "freq", (gdouble) 880,
-      "duration", (gint64) 2500000000LL, "start", (gint64) 1200000000LL,
-      "in_point", (gint64) 0LL, "priority", (gint64) 0LL, NULL);
-
-  ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (testsrca));
-
-  ges_timeline_pipeline_add_timeline (pipeline, timeline);
-  ges_timeline_pipeline_set_mode (pipeline, TIMELINE_MODE_PREVIEW_VIDEO);
-  gst_element_set_state (GST_ELEMENT (pipeline), GST_STATE_PLAYING);
-  g_main_loop_run (mainloop);
-
-  /*tear-down */
-  g_object_unref (timeline);
-
 }
 
 GST_END_TEST;
@@ -854,7 +804,6 @@ ges_suite (void)
   tcase_add_test (tc_chain, test_keyfile_load);
   tcase_add_test (tc_chain, test_keyfile_identity);
   tcase_add_test (tc_chain, transition_test);
-  tcase_add_test (tc_chain, test_start);
 
   return s;
 }

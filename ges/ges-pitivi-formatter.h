@@ -1,14 +1,10 @@
 #ifndef _GES_PITIVI_FORMATTER
 #define _GES_PITIVI_FORMATTER
-#include <stdio.h>
-#include <glib-object.h>
-#include <ges/ges-timeline.h>
 #include <libxml/xmlreader.h>
 #include <libxml/tree.h>
 #include <libxml/parser.h>
 #include <libxml/xpath.h>
 #include <libxml/xpathInternals.h>
-#include <assert.h>
 
 
 #define GES_TYPE_PITIVI_FORMATTER ges_pitivi_formatter_get_type()
