@@ -2,7 +2,7 @@
 
 G_DEFINE_TYPE (GESPitiviFormatter, ges_pitivi_formatter, GES_TYPE_FORMATTER);
 
-static gboolean save_pitivi_file_to_uri (GESFormatter * pitivi_formatter,
+static gboolean save_pitivi_timeline_to_uri (GESFormatter * pitivi_formatter,
     GESTimeline * timeline, const gchar * uri);
 static gboolean load_pitivi_file_from_uri (GESFormatter * pitivi_formatter,
     GESTimeline * timeline, const gchar * uri);
@@ -29,6 +29,13 @@ void make_transitions (GList * audio_tr_list, GList * video_tr_list,
     GESTimelineLayer * layer);
 void make_unorthodox_transition (GESTimelineLayer * layer, gint64 start,
     gint64 duration, gint64 audio_start, gint64 audio_duration);
+void save_tracks (GESTimeline * timeline, xmlTextWriterPtr writer,
+    GList * source_list);
+GList *save_sources (GESTimeline * timeline, xmlTextWriterPtr writer);
+void create_new_source_table (gchar * key, gchar * value, GHashTable * table);
+void save_track_objects (xmlTextWriterPtr writer, GList * source_list,
+    gchar * res, gint * id);
+void save_timeline_objects (xmlTextWriterPtr writer, GList * list);
 
 struct _GESPitiviFormatterPrivate
 {
@@ -48,7 +55,7 @@ ges_pitivi_formatter_class_init (GESPitiviFormatterClass * klass)
 
   formatter_klass = GES_FORMATTER_CLASS (klass);
 
-  formatter_klass->save_to_uri = save_pitivi_file_to_uri;
+  formatter_klass->save_to_uri = save_pitivi_timeline_to_uri;
   formatter_klass->load_from_uri = load_pitivi_file_from_uri;
 }
 
@@ -58,10 +65,232 @@ ges_pitivi_formatter_init (GESPitiviFormatter * object)
 }
 
 static gboolean
-save_pitivi_file_to_uri (GESFormatter * pitivi_formatter,
+save_pitivi_timeline_to_uri (GESFormatter * pitivi_formatter,
     GESTimeline * timeline, const gchar * uri)
 {
+  xmlTextWriterPtr writer;
+  GList *list = NULL;
+  writer = xmlNewTextWriterFilename (uri, 0);
+  xmlTextWriterSetIndent (writer, 1);
+  xmlTextWriterStartElement (writer, BAD_CAST "pitivi");
+
+  list = save_sources (timeline, writer);
+  save_tracks (timeline, writer, list);
+  save_timeline_objects (writer, list);
+
+  xmlTextWriterEndDocument (writer);
+  xmlFreeTextWriter (writer);
   return TRUE;
+}
+
+void
+save_timeline_objects (xmlTextWriterPtr writer, GList * list)
+{
+  GList *tmp;
+  xmlTextWriterStartElement (writer, BAD_CAST "timeline-objects");
+  for (tmp = list; tmp; tmp = tmp->next) {
+    GList *elem;
+    xmlTextWriterStartElement (writer, BAD_CAST "timeline-object");
+    elem = tmp->data;
+    xmlTextWriterStartElement (writer, BAD_CAST "factory-ref");
+    xmlTextWriterWriteAttribute (writer, BAD_CAST "id",
+        BAD_CAST
+        xmlXPathCastNumberToString (GPOINTER_TO_INT (g_list_first
+                (elem)->data)));
+    xmlTextWriterEndElement (writer);
+    xmlTextWriterStartElement (writer, BAD_CAST "track-object-refs");
+    xmlTextWriterStartElement (writer, BAD_CAST "track-object-ref");
+    if (g_list_length (elem) == 5) {
+      xmlTextWriterWriteAttribute (writer, BAD_CAST "id",
+          BAD_CAST (gchar *) (g_list_nth (elem, (guint) 3)->data));
+      xmlTextWriterEndElement (writer);
+      xmlTextWriterStartElement (writer, BAD_CAST "track-object-ref");
+      xmlTextWriterWriteAttribute (writer, BAD_CAST "id",
+          BAD_CAST (gchar *) (g_list_nth (elem, (guint) 4)->data));
+    } else {
+      xmlTextWriterWriteAttribute (writer, BAD_CAST "id",
+          BAD_CAST (gchar *) (g_list_nth (elem, (guint) 3)->data));
+    }
+    xmlTextWriterEndElement (writer);
+    xmlTextWriterEndElement (writer);
+    xmlTextWriterEndElement (writer);
+  }
+  xmlTextWriterEndElement (writer);
+}
+
+GList *
+save_sources (GESTimeline * timeline, xmlTextWriterPtr writer)
+{
+  GList *layers, *objects, *tmp;
+  GESTimelineLayer *layer;
+  int id = 1;
+  GHashTable *source_table;
+  GList *source_list = NULL;
+
+  layers = ges_timeline_get_layers (timeline);
+  layer = g_list_first (layers)->data;
+  objects = ges_timeline_layer_get_objects (layer);
+  source_table =
+      g_hash_table_new_full (g_str_hash, g_int_equal, g_free, g_free);
+
+  xmlTextWriterStartElement (writer, BAD_CAST "factories");
+  xmlTextWriterStartElement (writer, BAD_CAST "sources");
+
+  for (tmp = objects; tmp; tmp = tmp->next) {
+    GList *ref_type_list = NULL;
+    GESTimelineObject *object;
+    gchar *tfs_uri;
+    object = tmp->data;
+    if GES_IS_TIMELINE_TEST_SOURCE
+      (object) {
+      tfs_uri = (gchar *) "test";
+      if (!g_hash_table_lookup (source_table, tfs_uri)) {
+        g_hash_table_insert (source_table, tfs_uri, GINT_TO_POINTER (id));
+
+      } else {
+        tfs_uri = (gchar *) "test2";
+        g_hash_table_insert (source_table, tfs_uri, GINT_TO_POINTER (id));
+      }
+      xmlTextWriterStartElement (writer, BAD_CAST "source");
+      xmlTextWriterWriteAttribute (writer, BAD_CAST "filename",
+          BAD_CAST tfs_uri);
+      xmlTextWriterWriteAttribute (writer, BAD_CAST "id",
+          BAD_CAST xmlXPathCastNumberToString (id));
+      xmlTextWriterEndElement (writer);
+      id++;
+      ref_type_list =
+          g_list_append (ref_type_list, g_hash_table_lookup (source_table,
+              tfs_uri));
+      ref_type_list = g_list_append (ref_type_list, object);
+      ref_type_list = g_list_append (ref_type_list, g_strdup ("simple"));
+      source_list = g_list_append (source_list, g_list_copy (ref_type_list));
+    } else if GES_IS_TIMELINE_FILE_SOURCE
+      (object) {
+      tfs_uri = (gchar *) ges_timeline_filesource_get_uri
+          (GES_TIMELINE_FILE_SOURCE (object));
+      if (!g_hash_table_lookup (source_table, tfs_uri)) {
+        g_hash_table_insert (source_table, tfs_uri, GINT_TO_POINTER (id));
+        xmlTextWriterStartElement (writer, BAD_CAST "source");
+        xmlTextWriterWriteAttribute (writer, BAD_CAST "filename",
+            BAD_CAST tfs_uri);
+        xmlTextWriterWriteAttribute (writer, BAD_CAST "id",
+            BAD_CAST xmlXPathCastNumberToString (id));
+        xmlTextWriterEndElement (writer);
+        id++;
+      }
+      ref_type_list =
+          g_list_append (ref_type_list, g_hash_table_lookup (source_table,
+              tfs_uri));
+      ref_type_list = g_list_append (ref_type_list, object);
+      if (ges_timeline_filesource_get_audio_only
+          (GES_TIMELINE_FILE_SOURCE (object))) {
+        ref_type_list = g_list_append (ref_type_list, g_strdup ("audio"));
+      } else if (ges_timeline_filesource_get_video_only
+          (GES_TIMELINE_FILE_SOURCE (object))) {
+        ref_type_list = g_list_append (ref_type_list, g_strdup ("video"));
+      } else {
+        ref_type_list = g_list_append (ref_type_list, g_strdup ("simple"));
+      }
+      source_list = g_list_append (source_list, g_list_copy (ref_type_list));
+      }
+  }
+  xmlTextWriterEndElement (writer);
+  xmlTextWriterEndElement (writer);
+  return source_list;
+}
+
+void
+save_tracks (GESTimeline * timeline, xmlTextWriterPtr writer,
+    GList * source_list)
+{
+  GList *tracks, *tmp;
+  gint id = 0;
+  xmlTextWriterStartElement (writer, BAD_CAST "timeline");
+  xmlTextWriterStartElement (writer, BAD_CAST "tracks");
+  tracks = ges_timeline_get_tracks (timeline);
+  for (tmp = tracks; tmp; tmp = tmp->next) {
+    gchar *type, *caps, *res;
+    GESTrack *track;
+    GValue v = { 0 };
+    track = GES_TRACK (tmp->data);
+    xmlTextWriterStartElement (writer, BAD_CAST "track");
+    xmlTextWriterStartElement (writer, BAD_CAST "stream");
+    g_value_init (&v, GES_TYPE_TRACK_TYPE);
+    g_object_get_property (G_OBJECT (track), "track-type", &v);
+    type = gst_value_serialize (&v);
+    caps = gst_caps_to_string (ges_track_get_caps (track));
+    xmlTextWriterWriteAttribute (writer, BAD_CAST "caps", BAD_CAST caps);
+    if (!g_strcmp0 (type, "GES_TRACK_TYPE_AUDIO")) {
+      xmlTextWriterWriteAttribute (writer, BAD_CAST "type",
+          BAD_CAST "pitivi.stream.AudioStream");
+      xmlTextWriterEndElement (writer);
+      res = (gchar *) "audio";
+    } else {
+      xmlTextWriterWriteAttribute (writer, BAD_CAST "type",
+          BAD_CAST "pitivi.stream.VideoStream");
+      xmlTextWriterEndElement (writer);
+      res = (gchar *) "video";
+    }
+    save_track_objects (writer, source_list, res, &id);
+    xmlTextWriterEndElement (writer);
+  }
+  xmlTextWriterEndElement (writer);
+}
+
+void
+save_track_objects (xmlTextWriterPtr writer, GList * source_list, gchar * res,
+    gint * id)
+{
+  GList *tmp;
+  xmlTextWriterStartElement (writer, BAD_CAST "track-objects");
+  for (tmp = source_list; tmp; tmp = tmp->next) {
+    GList *elem;
+    guint i, n;
+    elem = tmp->data;
+    if (!g_strcmp0 ((gchar *) g_list_nth (elem, (guint) 2)->data, res) ||
+        !g_strcmp0 ((gchar *) g_list_nth (elem, (guint) 2)->data,
+            (gchar *) "simple")) {
+      GESTimelineObject *object;
+      GParamSpec **properties;
+      xmlTextWriterStartElement (writer, BAD_CAST "track-object");
+      object = g_list_next (elem)->data;
+      properties =
+          g_object_class_list_properties (G_OBJECT_GET_CLASS (object), &n);
+      for (i = 0; i < n; i++) {
+        GParamSpec *p = properties[i];
+        GValue v = { 0 };
+        gchar *serialized;
+        if (!g_strcmp0 (p->name, (gchar *) "duration") ||
+            !g_strcmp0 (p->name, (gchar *) "start") ||
+            !g_strcmp0 (p->name, (gchar *) "in-point")) {
+          g_value_init (&v, p->value_type);
+          g_object_get_property (G_OBJECT (object), p->name, &v);
+          serialized = gst_value_serialize (&v);
+          serialized = g_strconcat ((gchar *) "(gint64)", serialized, NULL);
+          if (!g_strcmp0 (p->name, (gchar *) "in-point")) {
+            xmlTextWriterWriteAttribute (writer, BAD_CAST (gchar *) "in_point",
+                BAD_CAST serialized);
+          } else {
+            xmlTextWriterWriteAttribute (writer, BAD_CAST p->name,
+                BAD_CAST serialized);
+          }
+          g_free (serialized);
+        }
+      }
+      xmlTextWriterWriteAttribute (writer, BAD_CAST "id",
+          BAD_CAST xmlXPathCastNumberToString (*id));
+      xmlTextWriterEndElement (writer);
+      xmlTextWriterStartElement (writer, BAD_CAST "factory-ref");
+      xmlTextWriterWriteAttribute (writer, BAD_CAST "id",
+          BAD_CAST
+          xmlXPathCastNumberToString (GPOINTER_TO_INT (g_list_first
+                  (elem)->data)));
+      xmlTextWriterEndElement (writer);
+      elem = g_list_append (elem, xmlXPathCastNumberToString (*id));
+      *id = *id + 1;
+    }
+  }
+  xmlTextWriterEndElement (writer);
 }
 
 xmlDocPtr
@@ -371,7 +600,7 @@ parse_timeline_objects (GHashTable * sources_table, xmlXPathContextPtr xpathCtx)
 {
   xmlXPathObjectPtr xpathObj;
   xmlNodeSetPtr nodes;
-  GHashTable *track_objects_table, *source_table;
+  GHashTable *track_objects_table, *source_table, *new_table;
   int size, j;
   xmlNode *cur_node = NULL;
   gchar *id, *ref;
@@ -394,17 +623,28 @@ parse_timeline_objects (GHashTable * sources_table, xmlXPathContextPtr xpathCtx)
     for (cur_node = cur_node; cur_node; cur_node = cur_node->next->next) {
       ref = (gchar *) xmlGetProp (cur_node, (xmlChar *) "id");
       source_table = g_hash_table_lookup (sources_table, id);
+      new_table = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
       if (simple && !cur_node->next->next) {
         res = (gchar *) "double";
+        g_hash_table_insert (source_table, g_strdup ("mode"), g_strdup (res));
+        g_hash_table_insert (track_objects_table, g_strdup (ref), source_table);
       } else {
         res = (gchar *) "simple";
+        g_hash_table_foreach (source_table, (GHFunc) create_new_source_table,
+            new_table);
+        g_hash_table_insert (track_objects_table, g_strdup (ref), new_table);
+        g_hash_table_insert (new_table, g_strdup ("mode"), g_strdup (res));
       }
       simple = FALSE;
-      g_hash_table_insert (source_table, g_strdup ("mode"), g_strdup (res));
-      g_hash_table_insert (track_objects_table, g_strdup (ref), source_table);
     }
   }
   return track_objects_table;
+}
+
+void
+create_new_source_table (gchar * key, gchar * value, GHashTable * table)
+{
+  g_hash_table_insert (table, g_strdup (key), g_strdup (value));
 }
 
 gboolean

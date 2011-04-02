@@ -635,7 +635,7 @@ GST_START_TEST (test_keyfile_load)
 
 GST_END_TEST;
 
-GST_START_TEST (transition_test)
+GST_START_TEST (test_pitivi_file_load)
 {
   GESFormatter *formatter;
   GESTimeline *timeline, *expected;
@@ -700,8 +700,8 @@ GST_START_TEST (transition_test)
       "duration", (gint64) 1300000000LL, "in-point", (gint64) 0, NULL);
 
   ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (testsrca));
-  ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (tr));
   ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (testsrcb));
+  ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (tr));
 
   /* create the timeline from formatter */
   formatter = GES_FORMATTER (ges_pitivi_formatter_new ());
@@ -720,6 +720,30 @@ GST_START_TEST (transition_test)
 
 GST_END_TEST;
 
+GST_START_TEST (test_pitivi_file_save)
+{
+  GESFormatter *formatter;
+  GESTimeline *timeline, *serialized = NULL;
+  char *a;
+  gchar *uri, *load_uri;
+  char cCurrentPath[FILENAME_MAX];
+
+  formatter = GES_FORMATTER (ges_pitivi_formatter_new ());
+  timeline = ges_timeline_new ();
+  serialized = ges_timeline_new ();
+  a = GetCurrentDir (cCurrentPath, sizeof (cCurrentPath));
+  uri = g_strconcat (a, "/testsave.xptv", NULL);
+  load_uri = g_strconcat (a, "/test.xptv", NULL);
+  ges_formatter_load_from_uri (formatter, timeline, load_uri);
+  ges_formatter_save_to_uri (formatter, timeline, uri);
+  ges_formatter_load_from_uri (formatter, serialized, uri);
+  TIMELINE_COMPARE (timeline, serialized);
+  g_object_unref (timeline);
+  g_object_unref (formatter);
+  g_object_unref (serialized);
+}
+
+GST_END_TEST
 GST_START_TEST (test_keyfile_identity)
 {
 
@@ -792,6 +816,8 @@ GST_START_TEST (test_keyfile_identity)
 
 GST_END_TEST;
 
+
+
 static Suite *
 ges_suite (void)
 {
@@ -803,7 +829,8 @@ ges_suite (void)
   tcase_add_test (tc_chain, test_keyfile_save);
   tcase_add_test (tc_chain, test_keyfile_load);
   tcase_add_test (tc_chain, test_keyfile_identity);
-  tcase_add_test (tc_chain, transition_test);
+  tcase_add_test (tc_chain, test_pitivi_file_load);
+  tcase_add_test (tc_chain, test_pitivi_file_save);
 
   return s;
 }

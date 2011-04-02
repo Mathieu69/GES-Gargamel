@@ -103,7 +103,8 @@ gboolean ges_timeline_filesource_is_image (GESTimelineFileSource * self);
 const gchar *ges_timeline_filesource_get_uri (GESTimelineFileSource * self);
 GESTrackType
 ges_timeline_filesource_get_supported_formats (GESTimelineFileSource * self);
-
+gboolean ges_timeline_filesource_get_audio_only (GESTimelineFileSource * self);
+gboolean ges_timeline_filesource_get_video_only (GESTimelineFileSource * self);
 GESTimelineFileSource* ges_timeline_filesource_new (gchar *uri);
 
 G_END_DECLS

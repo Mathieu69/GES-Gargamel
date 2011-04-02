@@ -313,6 +313,19 @@ ges_timeline_filesource_set_audio_only (GESTimelineFileSource * self,
 }
 
 /**
+ * ges_timeline_filesource_get_audio_only:
+ * @self: the #GESTimelineFileSource on which to get the audio_only property
+ *
+ * States whether the video track object of this timeline object was created or not.
+ *
+ */
+gboolean
+ges_timeline_filesource_get_audio_only (GESTimelineFileSource * self)
+{
+  return self->priv->audio_only;
+}
+
+/**
  * ges_timeline_filesource_set_video_only:
  * @self: the #GESTimelineFileSource on which to prevent the creation
  * of the audio track object
@@ -326,6 +339,20 @@ ges_timeline_filesource_set_video_only (GESTimelineFileSource * self,
     gboolean video_only)
 {
   self->priv->video_only = video_only;
+}
+
+/**
+ * ges_timeline_filesource_get_video_only:
+ * @self: the #GESTimelineFileSource on which to get the video_only property
+ *
+ * States whether the audio track object of this timeline object was created or not.
+ *
+ */
+
+gboolean
+ges_timeline_filesource_get_video_only (GESTimelineFileSource * self)
+{
+  return self->priv->video_only;
 }
 
 /**
