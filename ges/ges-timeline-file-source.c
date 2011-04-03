@@ -545,7 +545,6 @@ ges_timeline_filesource_create_track_object (GESTimelineObject * obj,
 
   else {
     GST_DEBUG ("Creating a GESTrackFileSource");
-    printf ("ok c'est la\n");
 
     /* FIXME : Implement properly ! */
     res = (GESTrackObject *) ges_track_filesource_new (priv->uri);

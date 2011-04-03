@@ -405,6 +405,8 @@ parse_track_objects (xmlXPathContextPtr xpathCtx, GESTimelineLayer * layer,
     list = NULL;
     if (!g_strcmp0 (mode, (gchar *) "simple")) {
       if (!xmlStrcmp (type, (xmlChar *) "pitivi.stream.AudioStream")) {
+        g_hash_table_destroy (table);
+        g_hash_table_destroy (source_table);
         continue;
       }
       if (!g_strcmp0 (filename, (gchar *) "test")
@@ -437,6 +439,8 @@ parse_track_objects (xmlXPathContextPtr xpathCtx, GESTimelineLayer * layer,
     } else {
       set_source_properties (G_OBJECT (src), table, layer);
     }
+    g_hash_table_destroy (table);
+    g_hash_table_destroy (source_table);
   }
   calculate_transitions (lists_list, layer);
 }
@@ -489,6 +493,7 @@ calculate_transitions (GList * list, GESTimelineLayer * layer)
       prev_audio_end = end;
     }
   }
+  //g_list_foreach (list, (GFunc) g_free, NULL);
   make_transitions (audio_tr_list, video_tr_list, layer);
 }
 
@@ -528,6 +533,8 @@ make_transitions (GList * audio_tr_list, GList * video_tr_list,
       make_transition (layer, audio_start, audio_duration, (gchar *) "audio");
     }
   }
+  g_list_foreach (audio_tr_list, (GFunc) g_free, NULL);
+  g_list_foreach (video_tr_list, (GFunc) g_free, NULL);
 }
 
 void
@@ -588,11 +595,9 @@ void
 set_property (GObject * src, gchar * prop_name, gchar * prop_value)
 {
   gint64 converted;
-  gint64 real;
   prop_value = g_strsplit (prop_value, (gchar *) ")", (gint) 0)[1];
   converted = g_ascii_strtoll ((gchar *) prop_value, NULL, 0);
   g_object_set (src, prop_name, converted, NULL);
-  g_object_get (src, prop_name, &real, NULL);
 }
 
 GHashTable *
@@ -712,7 +717,9 @@ load_pitivi_file_from_uri (GESFormatter * pitivi_formatter,
   source_table = list_sources (xpathCtx, layer);
   source_table = parse_timeline_objects (source_table, xpathCtx);
   parse_track_objects (xpathCtx, layer, source_table);
+  g_hash_table_destroy (source_table);
 bed:
+  xmlXPathFreeContext (xpathCtx);
   xmlFreeDoc (doc);
   return ret;
 }
