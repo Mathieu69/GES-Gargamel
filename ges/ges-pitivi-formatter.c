@@ -36,6 +36,7 @@ void create_new_source_table (gchar * key, gchar * value, GHashTable * table);
 void save_track_objects (xmlTextWriterPtr writer, GList * source_list,
     gchar * res, gint * id);
 void save_timeline_objects (xmlTextWriterPtr writer, GList * list);
+void destroy_tables (gchar * ref, GHashTable * table);
 
 struct _GESPitiviFormatterPrivate
 {
@@ -220,6 +221,7 @@ save_tracks (GESTimeline * timeline, xmlTextWriterPtr writer,
     type = gst_value_serialize (&v);
     caps = gst_caps_to_string (ges_track_get_caps (track));
     xmlTextWriterWriteAttribute (writer, BAD_CAST "caps", BAD_CAST caps);
+    g_free (caps);
     if (!g_strcmp0 (type, "GES_TRACK_TYPE_AUDIO")) {
       xmlTextWriterWriteAttribute (writer, BAD_CAST "type",
           BAD_CAST "pitivi.stream.AudioStream");
@@ -353,7 +355,8 @@ list_sources (xmlXPathContextPtr xpathCtx, GESTimelineLayer * layer)
   gchar *id;
   xmlNodeSetPtr nodes;
 
-  sources_table = g_hash_table_new_full (g_str_hash, g_str_equal, g_free, NULL);
+  sources_table =
+      g_hash_table_new_full (g_str_hash, g_str_equal, g_free, g_free);
   xpathObj = xmlXPathEvalExpression ((const xmlChar *)
       "/pitivi/factories/sources/source", xpathCtx);
   nodes = xpathObj->nodesetval;
@@ -641,7 +644,9 @@ parse_timeline_objects (GHashTable * sources_table, xmlXPathContextPtr xpathCtx)
         g_hash_table_insert (new_table, g_strdup ("mode"), g_strdup (res));
       }
       simple = FALSE;
+      xmlFree (ref);
     }
+    xmlFree (id);
   }
   return track_objects_table;
 }
@@ -691,6 +696,7 @@ print_xpath_nodes (xmlNodePtr node)
     name = (gchar *) cur_attr->name;
     value = (gchar *) xmlGetProp (node, cur_attr->name);
     g_hash_table_insert (props_table, g_strdup (name), g_strdup (value));
+    xmlFree (value);
   }
   return props_table;
 }
@@ -703,7 +709,7 @@ load_pitivi_file_from_uri (GESFormatter * pitivi_formatter,
   GESTimelineLayer *layer;
   gboolean ret = TRUE;
   xmlXPathContextPtr xpathCtx;
-  GHashTable *source_table;
+  GHashTable *source_table, *track_objects_table;
 
   layer = ges_timeline_layer_new ();
   g_object_set (layer, "priority", (gint32) 0, NULL);
@@ -715,13 +721,20 @@ load_pitivi_file_from_uri (GESFormatter * pitivi_formatter,
     goto bed;
   }
   source_table = list_sources (xpathCtx, layer);
-  source_table = parse_timeline_objects (source_table, xpathCtx);
-  parse_track_objects (xpathCtx, layer, source_table);
-  g_hash_table_destroy (source_table);
+  track_objects_table = parse_timeline_objects (source_table, xpathCtx);
+  parse_track_objects (xpathCtx, layer, track_objects_table);
+  g_hash_table_destroy (track_objects_table);
+  //g_hash_table_foreach (source_table, (GHFunc) destroy_tables, NULL);
 bed:
   xmlXPathFreeContext (xpathCtx);
   xmlFreeDoc (doc);
   return ret;
+}
+
+void
+destroy_tables (gchar * ref, GHashTable * table)
+{
+  printf ("une : %s\n", ref);
 }
 
 GESPitiviFormatter *
