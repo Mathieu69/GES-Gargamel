@@ -201,15 +201,22 @@ ges_tl_transition_create_track_object (GESTimelineObject * obj,
   GST_DEBUG ("Creating a GESTrackTransition");
 
   if (track->type == GES_TRACK_TYPE_VIDEO) {
-    res = GES_TRACK_OBJECT (ges_track_video_transition_new ());
-    ges_track_video_transition_set_transition_type ((GESTrackVideoTransition *)
-        res, transition->vtype);
+    if (priv->audio_only) {
+      res = NULL;
+    } else {
+      res = GES_TRACK_OBJECT (ges_track_video_transition_new ());
+      ges_track_video_transition_set_transition_type ((GESTrackVideoTransition
+              *)
+          res, transition->vtype);
+    }
   }
 
   else if (track->type == GES_TRACK_TYPE_AUDIO) {
-    res = GES_TRACK_OBJECT (ges_track_audio_transition_new ());
-    if (priv->video_only)
+    if (priv->video_only) {
       res = NULL;
+    } else {
+      res = GES_TRACK_OBJECT (ges_track_audio_transition_new ());
+    }
   }
 
   else {

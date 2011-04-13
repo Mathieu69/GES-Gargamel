@@ -418,7 +418,7 @@ ges_formatter_save_to_uri (GESFormatter * formatter, GESTimeline *
     elem = tmp->data;
     g_object_unref (elem);
   }
-
+  g_list_free (layers);
   if (klass->save_to_uri)
     return klass->save_to_uri (formatter, timeline, uri);
 
