@@ -13,9 +13,7 @@ static gboolean add_to_timeline (GESTrack * track, GESTimeline * timeline);
 static void set_property (GObject * src, gchar * prop_name, gchar * prop_value,
     GESTimelineTestSource * background);
 static GHashTable *get_nodes_infos (xmlNodePtr nodes);
-static gboolean create_tracks (xmlXPathContextPtr xpathCtx,
-    GESTimeline * timeline);
-static GESTrack *create_track (GHashTable * table);
+static gboolean create_tracks (GESTimeline * timeline);
 static GHashTable *list_sources (xmlXPathContextPtr xpathCtx,
     GESTimelineLayer * layer);
 static void parse_track_objects (xmlXPathContextPtr xpathCtx,
@@ -24,7 +22,7 @@ static GHashTable *parse_timeline_objects (GHashTable * sources_table,
     xmlXPathContextPtr xpathCtx);
 static void set_source_properties (GObject * src, GHashTable * table,
     GESTimelineLayer * layer, GESTimelineTestSource * background);
-static void make_transition (GESTimelineLayer * layer, gint64 start
+static void make_transition (GESTimelineLayer * layer, gint64 start,
     gint64 prev_end, gchar * type);
 static void calculate_transitions (GList * list, GESTimelineLayer * layer);
 static void make_transitions (GList * audio_tr_list, GList * video_tr_list,
@@ -105,10 +103,11 @@ load_pitivi_file_from_uri (GESFormatter * pitivi_formatter,
   doc = create_doc (uri);
   xpathCtx = xmlXPathNewContext (doc);
 
-  create_tracks (xpathCtx, timeline);
+  create_tracks (timeline);
   source_table = list_sources (xpathCtx, layer);
   track_objects_table = parse_timeline_objects (source_table, xpathCtx);
   parse_track_objects (xpathCtx, layer, track_objects_table);
+  printf ("on est bon merde \n");
 
   g_hash_table_foreach (source_table, (GHFunc) destroy_tables, NULL);
   g_hash_table_foreach (track_objects_table, (GHFunc) destroy_tables, NULL);
@@ -366,33 +365,6 @@ create_doc (const gchar * uri)
   return doc;
 }
 
-
-static GESTrack *
-create_track (GHashTable * table)
-{
-  gchar *type, *caps_field;
-  GValue v = { 0 };
-  GstCaps *caps = { 0 };
-  GESTrack *track = NULL;
-
-  type = (gchar *) g_hash_table_lookup (table, (gchar *) "type");
-  caps_field = (gchar *) g_hash_table_lookup (table, (gchar *) "caps");
-  caps = gst_caps_from_string (caps_field);
-
-  if (!g_strcmp0 (type, (gchar *) "pitivi.stream.AudioStream")) {
-    gchar type_field[] = "GES_TRACK_TYPE_AUDIO";
-    g_value_init (&v, GES_TYPE_TRACK_TYPE);
-    gst_value_deserialize (&v, type_field);
-    track = ges_track_new (g_value_get_flags (&v), caps);
-  } else if (!g_strcmp0 (type, (gchar *) "pitivi.stream.VideoStream")) {
-    gchar type_field[] = "GES_TRACK_TYPE_VIDEO";
-    g_value_init (&v, GES_TYPE_TRACK_TYPE);
-    gst_value_deserialize (&v, type_field);
-    track = ges_track_new (g_value_get_flags (&v), caps);
-  }
-  return track;
-}
-
 static gboolean
 add_to_timeline (GESTrack * track, GESTimeline * timeline)
 {
@@ -443,7 +415,7 @@ parse_track_objects (xmlXPathContextPtr xpathCtx, GESTimelineLayer * layer,
   GESTimelineFileSource *src = NULL;
   GList *list = NULL;
   GList *lists_list = NULL;
-  GESTimelineTestSource *background;
+  GESTimelineTestSource *background = NULL;
 
   background = ges_timeline_test_source_new ();
   ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (background));
@@ -677,8 +649,10 @@ set_property (GObject * src, gchar * prop_name, gchar * prop_value,
   prop_value = values_array[1];
   converted = g_ascii_strtoll ((gchar *) prop_value, NULL, 0);
   g_object_set (src, prop_name, converted, NULL);
+  printf ("converted : %lld\n", converted);
   if (background != NULL) {
-    g_object_set (background, "duration", converted, NULL);
+    printf ("setting that shit\n");
+    g_object_set (background, "duration", converted, "priority", 1000, NULL);
   }
   g_strfreev (values_array);
 }
@@ -742,30 +716,14 @@ create_new_source_table (gchar * key, gchar * value, GHashTable * table)
 }
 
 static gboolean
-create_tracks (xmlXPathContextPtr xpathCtx, GESTimeline * timeline)
+create_tracks (GESTimeline * timeline)
 {
-  xmlXPathObjectPtr xpathObj;
-  xmlNodeSetPtr nodes;
-  GHashTable *table;
   GESTrack *track;
-  int j;
-  int size;
 
-  xpathObj = xmlXPathEvalExpression ((const xmlChar *)
-      "/pitivi/timeline/tracks/track/stream", xpathCtx);
-  nodes = xpathObj->nodesetval;
-  size = (nodes) ? nodes->nodeNr : 0;
-
-  for (j = 0; j < size; ++j) {
-    table = get_nodes_infos (nodes->nodeTab[j]);
-    track = create_track (table);
-    g_hash_table_destroy (table);
-    if (!add_to_timeline (track, timeline)) {
-      xmlFree (xpathObj);
-      return FALSE;
-    }
-  }
-  xmlXPathFreeObject (xpathObj);
+  track = ges_track_audio_raw_new ();
+  add_to_timeline (track, timeline);
+  track = ges_track_video_raw_new ();
+  add_to_timeline (track, timeline);
   return TRUE;
 }
 
