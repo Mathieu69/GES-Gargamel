@@ -14,10 +14,9 @@ static void set_property (GObject * src, gchar * prop_name, gchar * prop_value,
     GESTimelineTestSource * background);
 static GHashTable *get_nodes_infos (xmlNodePtr nodes);
 static gboolean create_tracks (GESTimeline * timeline);
-static GHashTable *list_sources (xmlXPathContextPtr xpathCtx,
-    GESTimelineLayer * layer);
+static GHashTable *list_sources (xmlXPathContextPtr xpathCtx);
 static void parse_track_objects (xmlXPathContextPtr xpathCtx,
-    GESTimelineLayer * layer, GHashTable * sources_table);
+    GList * layers_list, GHashTable * sources_table, GESTimeline * timeline);
 static GHashTable *parse_timeline_objects (GHashTable * sources_table,
     xmlXPathContextPtr xpathCtx);
 static void set_source_properties (GObject * src, GHashTable * table,
@@ -92,22 +91,24 @@ load_pitivi_file_from_uri (GESFormatter * pitivi_formatter,
     GESTimeline * timeline, const gchar * uri)
 {
   xmlDocPtr doc;
+  GList *layers_list = NULL;
   GESTimelineLayer *layer;
   gboolean ret = TRUE;
   xmlXPathContextPtr xpathCtx;
   GHashTable *source_table, *track_objects_table;
 
   layer = ges_timeline_layer_new ();
+  layers_list = g_list_append (layers_list, layer);
   g_object_set (layer, "priority", (gint32) 0, NULL);
   ges_timeline_add_layer (timeline, layer);
   doc = create_doc (uri);
   xpathCtx = xmlXPathNewContext (doc);
 
   create_tracks (timeline);
-  source_table = list_sources (xpathCtx, layer);
+  source_table = list_sources (xpathCtx);
   track_objects_table = parse_timeline_objects (source_table, xpathCtx);
-  parse_track_objects (xpathCtx, layer, track_objects_table);
-  printf ("on est bon merde \n");
+  parse_track_objects (xpathCtx, layers_list, track_objects_table, timeline);
+  printf ("on est bon шлюха \n");
 
   g_hash_table_foreach (source_table, (GHFunc) destroy_tables, NULL);
   g_hash_table_foreach (track_objects_table, (GHFunc) destroy_tables, NULL);
@@ -376,7 +377,7 @@ add_to_timeline (GESTrack * track, GESTimeline * timeline)
 }
 
 static GHashTable *
-list_sources (xmlXPathContextPtr xpathCtx, GESTimelineLayer * layer)
+list_sources (xmlXPathContextPtr xpathCtx)
 {
   xmlXPathObjectPtr xpathObj;
   GHashTable *table, *sources_table;
@@ -400,8 +401,8 @@ list_sources (xmlXPathContextPtr xpathCtx, GESTimelineLayer * layer)
 }
 
 static void
-parse_track_objects (xmlXPathContextPtr xpathCtx, GESTimelineLayer * layer,
-    GHashTable * sources_table)
+parse_track_objects (xmlXPathContextPtr xpathCtx, GList * layers_list,
+    GHashTable * sources_table, GESTimeline * timeline)
 {
   xmlXPathObjectPtr xpathObj;
   xmlNodeSetPtr nodes;
@@ -413,11 +414,14 @@ parse_track_objects (xmlXPathContextPtr xpathCtx, GESTimelineLayer * layer,
   gchar *mode, *filename;
   GESTimelineTestSource *testsrc = NULL;
   GESTimelineFileSource *src = NULL;
-  GList *list = NULL;
-  GList *lists_list = NULL;
+  GList *list = NULL, *tmp = NULL, *lists_list = NULL;
   GESTimelineTestSource *background = NULL;
+  GESTimelineLayer *layer;
+  gchar *priority;
+  gint cast_priority;
 
   background = ges_timeline_test_source_new ();
+  layer = g_list_first (layers_list)->data;
   ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (background));
   xpathObj = xmlXPathEvalExpression ((const xmlChar *)
       "/pitivi/timeline/tracks/track/track-objects/track-object", xpathCtx);
@@ -425,6 +429,21 @@ parse_track_objects (xmlXPathContextPtr xpathCtx, GESTimelineLayer * layer,
   size = (nodes) ? nodes->nodeNr : 0;
   for (j = 0; j < size; ++j) {
     table = get_nodes_infos (nodes->nodeTab[j]);
+
+    priority = (gchar *) g_hash_table_lookup (table, (gchar *) "priority");
+    priority = g_strsplit (priority, ")", 0)[1];
+    cast_priority = (gint) g_ascii_strtod (priority, NULL);
+    printf ("priorité à : %d\n", cast_priority);
+    if (!(tmp = g_list_nth (layers_list, cast_priority))) {
+      printf ("On se fout de notre gueule !\n");
+      layer = ges_timeline_layer_new ();
+      ges_timeline_layer_set_priority (layer, cast_priority);
+      ges_timeline_add_layer (timeline, layer);
+      layers_list = g_list_append (layers_list, layer);
+    } else {
+      printf ("c'est bien !\n");
+      layer = tmp->data;
+    }
     id = (gchar *) g_hash_table_lookup (table, (gchar *) "id");
     source_table = g_hash_table_lookup (sources_table, id);
     type =
@@ -470,6 +489,7 @@ parse_track_objects (xmlXPathContextPtr xpathCtx, GESTimelineLayer * layer,
     g_strfreev (startarray);
     g_strfreev (durationarray);
     list = g_list_append (list, g_strdup ((gchar *) type));
+    list = g_list_append (list, GINT_TO_POINTER (cast_priority));
     xmlFree (type);
     lists_list = g_list_append (lists_list, list);
     if (!g_strcmp0 (filename, (gchar *) "test")
@@ -495,6 +515,7 @@ calculate_transitions (GList * list, GESTimelineLayer * layer)
   gint64 end, prev_video_end = 0, prev_audio_end = 0;
   GList *audio_tr_list = NULL, *video_tr_list = NULL;
   GList *tmp = NULL;
+  gint priority;
 
   for (tmp = list; tmp; tmp = tmp->next) {
     GValue a = { 0 };
@@ -502,7 +523,9 @@ calculate_transitions (GList * list, GESTimelineLayer * layer)
     start = g_ascii_strtoll ((gchar *) g_list_first (tmp->data)->data, NULL, 0);
     duration =
         g_ascii_strtoll ((gchar *) g_list_next (tmp->data)->data, NULL, 0);
-    type = (xmlChar *) g_list_last (tmp->data)->data;
+    type = (xmlChar *) g_list_nth (tmp->data, 2)->data;
+    priority = GPOINTER_TO_INT (g_list_nth (tmp->data, 3)->data);
+    printf ("prio : %d\n", priority);
     g_value_init (&v, GST_TYPE_INT64_RANGE);
     g_value_init (&a, GST_TYPE_INT64_RANGE);
     end = start + duration;
@@ -592,6 +615,7 @@ make_unorthodox_transition (GESTimelineLayer * layer, gint64 start,
 {
   GESTimelineStandardTransition *tr;
   GList *trackobjects, *tmp;
+  printf ("une trans ...\n");
   tr = ges_timeline_standard_transition_new_for_nick ((char *) "crossfade");
   g_object_set (tr, "start", (gint64) start, "duration",
       (gint64) duration, "in-point", (gint64) 0, NULL);
@@ -615,6 +639,7 @@ make_transition (GESTimelineLayer * layer, gint64 start, gint64 duration,
     gchar * type)
 {
   GESTimelineObject *tr;
+  printf ("une trans ...\n");
   tr = GES_TIMELINE_OBJECT (ges_timeline_standard_transition_new_for_nick ((char
               *) "crossfade"));
   if (!g_strcmp0 (type, (gchar *) "video"))
@@ -767,7 +792,9 @@ destroy_tables (gchar * ref, GHashTable * table)
 static void
 destroy_lists (GList * list)
 {
-  g_list_foreach (list, (GFunc) g_free, NULL);
+  g_free (g_list_nth (list, 0)->data);
+  g_free (g_list_nth (list, 1)->data);
+  g_free (g_list_nth (list, 2)->data);
 }
 
 GESPitiviFormatter *
