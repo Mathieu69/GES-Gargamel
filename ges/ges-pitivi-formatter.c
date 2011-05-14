@@ -23,7 +23,7 @@ static void set_source_properties (GObject * src, GHashTable * table,
     GESTimelineLayer * layer, GESTimelineTestSource * background);
 static void make_transition (GESTimelineLayer * layer, gint64 start,
     gint64 prev_end, gchar * type);
-static void calculate_transitions (GList * list, GESTimelineLayer * layer);
+static void calculate_transitions (GESTimelineLayer * layer);
 static void make_transitions (GList * audio_tr_list, GList * video_tr_list,
     GESTimelineLayer * layer);
 static void make_unorthodox_transition (GESTimelineLayer * layer, gint64 start,
@@ -37,7 +37,6 @@ static void save_track_objects (xmlTextWriterPtr writer, GList * source_list,
     gchar * res, gint * id);
 static void save_timeline_objects (xmlTextWriterPtr writer, GList * list);
 static void destroy_tables (gchar * ref, GHashTable * table);
-static void destroy_lists (GList * list);
 static void destroy_all (GList * list);
 
 struct _GESPitiviFormatterPrivate
@@ -410,18 +409,19 @@ parse_track_objects (xmlXPathContextPtr xpathCtx, GList * layers_list,
   GHashTable *table, *source_table = NULL;
   gchar *id;
   xmlChar *type;
-  gchar **startarray = NULL, **durationarray = NULL;
   gchar *mode, *filename;
   GESTimelineTestSource *testsrc = NULL;
   GESTimelineFileSource *src = NULL;
-  GList *list = NULL, *tmp = NULL, *lists_list = NULL;
+  GList *list = NULL, *tmp = NULL, *lists_list = NULL, *tmpl = NULL;
   GESTimelineTestSource *background = NULL;
   GESTimelineLayer *layer;
   gchar *priority;
   gint cast_priority;
 
   background = ges_timeline_test_source_new ();
-  layer = g_list_first (layers_list)->data;
+  layer = ges_timeline_layer_new ();
+  ges_timeline_layer_set_priority (layer, 99);
+  ges_timeline_add_layer (timeline, layer);
   ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (background));
   xpathObj = xmlXPathEvalExpression ((const xmlChar *)
       "/pitivi/timeline/tracks/track/track-objects/track-object", xpathCtx);
@@ -435,13 +435,11 @@ parse_track_objects (xmlXPathContextPtr xpathCtx, GList * layers_list,
     cast_priority = (gint) g_ascii_strtod (priority, NULL);
     printf ("priorité à : %d\n", cast_priority);
     if (!(tmp = g_list_nth (layers_list, cast_priority))) {
-      printf ("On se fout de notre gueule !\n");
       layer = ges_timeline_layer_new ();
       ges_timeline_layer_set_priority (layer, cast_priority);
       ges_timeline_add_layer (timeline, layer);
       layers_list = g_list_append (layers_list, layer);
     } else {
-      printf ("c'est bien !\n");
       layer = tmp->data;
     }
     id = (gchar *) g_hash_table_lookup (table, (gchar *) "id");
@@ -478,18 +476,6 @@ parse_track_objects (xmlXPathContextPtr xpathCtx, GList * layers_list,
       src = ges_timeline_filesource_new (filename);
       ges_timeline_filesource_set_audio_only (src, TRUE);
     }
-    startarray =
-        g_strsplit ((gchar *) g_hash_table_lookup (table,
-            (gchar *) "start"), ")", (gint) 0);
-    durationarray =
-        g_strsplit ((gchar *) g_hash_table_lookup (table,
-            (gchar *) "duration"), ")", (gint) 0);
-    list = g_list_append (list, g_strdup (startarray[1]));
-    list = g_list_append (list, g_strdup (durationarray[1]));
-    g_strfreev (startarray);
-    g_strfreev (durationarray);
-    list = g_list_append (list, g_strdup ((gchar *) type));
-    list = g_list_append (list, GINT_TO_POINTER (cast_priority));
     xmlFree (type);
     lists_list = g_list_append (lists_list, list);
     if (!g_strcmp0 (filename, (gchar *) "test")
@@ -500,35 +486,41 @@ parse_track_objects (xmlXPathContextPtr xpathCtx, GList * layers_list,
     }
     g_hash_table_destroy (table);
   }
-  calculate_transitions (lists_list, layer);
+  for (tmpl = layers_list; tmpl; tmpl = tmpl->next) {
+    calculate_transitions (tmpl->data);
+  }
   xmlXPathFreeObject (xpathObj);
-  g_list_foreach (lists_list, (GFunc) g_list_free, NULL);
-  g_list_free (lists_list);
+  printf ("fastidieux pute\n");
 }
 
-
 static void
-calculate_transitions (GList * list, GESTimelineLayer * layer)
+calculate_transitions (GESTimelineLayer * layer)
 {
-  gint64 start, duration;
   xmlChar *type;
-  gint64 end, prev_video_end = 0, prev_audio_end = 0;
-  GList *audio_tr_list = NULL, *video_tr_list = NULL;
+  gint64 end, prev_video_end = 0, prev_audio_end = 0, start, duration;
+  GList *audio_tr_list = NULL, *video_tr_list = NULL, *list = NULL;
   GList *tmp = NULL;
-  gint priority;
+  GESTimelineFileSource *src;
+
+  list = ges_timeline_layer_get_objects (layer);
 
   for (tmp = list; tmp; tmp = tmp->next) {
     GValue a = { 0 };
     GValue v = { 0 };
-    start = g_ascii_strtoll ((gchar *) g_list_first (tmp->data)->data, NULL, 0);
-    duration =
-        g_ascii_strtoll ((gchar *) g_list_next (tmp->data)->data, NULL, 0);
-    type = (xmlChar *) g_list_nth (tmp->data, 2)->data;
-    priority = GPOINTER_TO_INT (g_list_nth (tmp->data, 3)->data);
-    printf ("prio : %d\n", priority);
+    src = tmp->data;
+    g_object_get (src, "start", &start, NULL);
+    g_object_get (src, "duration", &duration, NULL);
+    if (ges_timeline_filesource_get_video_only (src)) {
+      type = (xmlChar *) "pitivi.stream.VideoStream";
+    } else if (ges_timeline_filesource_get_audio_only (src)) {
+      type = (xmlChar *) "pitivi.stream.AudioStream";
+    } else {
+      type = (xmlChar *) "simple";
+    }
     g_value_init (&v, GST_TYPE_INT64_RANGE);
     g_value_init (&a, GST_TYPE_INT64_RANGE);
     end = start + duration;
+    printf ("%lld\n", end);
     if (!xmlStrcmp (type, (xmlChar *) "simple")) {
       if (start < prev_video_end) {
         gst_value_set_int64_range (&v, start, prev_video_end);
@@ -560,8 +552,9 @@ calculate_transitions (GList * list, GESTimelineLayer * layer)
     g_value_unset (&a);
     g_value_unset (&v);
   }
+
   make_transitions (audio_tr_list, video_tr_list, layer);
-  g_list_foreach (list, (GFunc) destroy_lists, NULL);
+  printf ("comment ??");
 }
 
 static void
@@ -787,14 +780,6 @@ static void
 destroy_tables (gchar * ref, GHashTable * table)
 {
   g_hash_table_destroy (table);
-}
-
-static void
-destroy_lists (GList * list)
-{
-  g_free (g_list_nth (list, 0)->data);
-  g_free (g_list_nth (list, 1)->data);
-  g_free (g_list_nth (list, 2)->data);
 }
 
 GESPitiviFormatter *
