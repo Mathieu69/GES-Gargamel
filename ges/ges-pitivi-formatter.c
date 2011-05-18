@@ -30,7 +30,7 @@ static void make_unorthodox_transition (GESTimelineLayer * layer, gint64 start,
     gint64 duration, gint64 audio_start, gint64 audio_duration);
 static void save_tracks (GESTimeline * timeline, xmlTextWriterPtr writer,
     GList * source_list);
-static GList *save_sources (GESTimeline * timeline, xmlTextWriterPtr writer);
+static GList *save_sources (GESTimelineLayer * layer, xmlTextWriterPtr writer);
 static void create_new_source_table (gchar * key, gchar * value,
     GHashTable * table);
 static void save_track_objects (xmlTextWriterPtr writer, GList * source_list,
@@ -66,20 +66,24 @@ save_pitivi_timeline_to_uri (GESFormatter * pitivi_formatter,
     GESTimeline * timeline, const gchar * uri)
 {
   xmlTextWriterPtr writer;
-  GList *list = NULL;
+  GList *list = NULL, *layers = NULL, *tmp = NULL;
 
   writer = xmlNewTextWriterFilename (uri, 0);
 
   xmlTextWriterSetIndent (writer, 1);
   xmlTextWriterStartElement (writer, BAD_CAST "pitivi");
 
-  list = save_sources (timeline, writer);
+  layers = ges_timeline_get_layers (timeline);
+  for (tmp = layers; tmp; tmp = tmp->next) {
+    list = save_sources (tmp->data, writer);
+  }
   save_tracks (timeline, writer, list);
   save_timeline_objects (writer, list);
 
   xmlTextWriterEndDocument (writer);
   xmlFreeTextWriter (writer);
 
+  g_list_free (layers);
   g_list_foreach (list, (GFunc) destroy_all, NULL);
   g_list_free (list);
   return TRUE;
@@ -106,6 +110,7 @@ load_pitivi_file_from_uri (GESFormatter * pitivi_formatter,
   create_tracks (timeline);
   source_table = list_sources (xpathCtx);
   track_objects_table = parse_timeline_objects (source_table, xpathCtx);
+  printf ("шлюха \n");
   parse_track_objects (xpathCtx, layers_list, track_objects_table, timeline);
   printf ("on est bon шлюха \n");
 
@@ -159,16 +164,13 @@ save_timeline_objects (xmlTextWriterPtr writer, GList * list)
 }
 
 static GList *
-save_sources (GESTimeline * timeline, xmlTextWriterPtr writer)
+save_sources (GESTimelineLayer * layer, xmlTextWriterPtr writer)
 {
-  GList *layers, *objects, *tmp;
-  GESTimelineLayer *layer;
+  GList *objects, *tmp;
   GHashTable *source_table;
   GList *source_list = NULL;
   int id = 1;
-
-  layers = ges_timeline_get_layers (timeline);
-  layer = g_list_first (layers)->data;
+  printf ("we do ?\n");
   objects = ges_timeline_layer_get_objects (layer);
   source_table = g_hash_table_new_full (g_str_hash, g_int_equal, NULL, g_free);
 
@@ -239,13 +241,15 @@ save_sources (GESTimeline * timeline, xmlTextWriterPtr writer)
       } else {
         ref_type_list = g_list_append (ref_type_list, g_strdup ("simple"));
       }
+      ref_type_list =
+          g_list_append (ref_type_list,
+          GINT_TO_POINTER (ges_timeline_layer_get_priority (layer)));
       source_list = g_list_append (source_list, g_list_copy (ref_type_list));
       g_list_free (ref_type_list);
       }
   }
   xmlTextWriterEndElement (writer);
   xmlTextWriterEndElement (writer);
-  g_list_free (layers);
   g_object_unref (G_OBJECT (layer));
   g_list_free (objects);
   g_hash_table_destroy (source_table);
@@ -343,6 +347,10 @@ save_track_objects (xmlTextWriterPtr writer, GList * source_list, gchar * res,
       xmlTextWriterStartElement (writer, BAD_CAST "factory-ref");
       cast = g_list_first (elem)->data;
       xmlTextWriterWriteAttribute (writer, BAD_CAST "id", BAD_CAST cast);
+      cast =
+          xmlXPathCastNumberToString (GPOINTER_TO_INT (g_list_nth ((elem)->data,
+                  2)));
+      printf ("%s\n", cast);
       xmlTextWriterEndElement (writer);
       elem = g_list_append (elem, xmlXPathCastNumberToString (*id));
       *id = *id + 1;
@@ -418,6 +426,7 @@ parse_track_objects (xmlXPathContextPtr xpathCtx, GList * layers_list,
   gchar *priority;
   gint cast_priority;
 
+
   background = ges_timeline_test_source_new ();
   layer = ges_timeline_layer_new ();
   ges_timeline_layer_set_priority (layer, 99);
@@ -433,7 +442,6 @@ parse_track_objects (xmlXPathContextPtr xpathCtx, GList * layers_list,
     priority = (gchar *) g_hash_table_lookup (table, (gchar *) "priority");
     priority = g_strsplit (priority, ")", 0)[1];
     cast_priority = (gint) g_ascii_strtod (priority, NULL);
-    printf ("priorité à : %d\n", cast_priority);
     if (!(tmp = g_list_nth (layers_list, cast_priority))) {
       layer = ges_timeline_layer_new ();
       ges_timeline_layer_set_priority (layer, cast_priority);
@@ -490,7 +498,6 @@ parse_track_objects (xmlXPathContextPtr xpathCtx, GList * layers_list,
     calculate_transitions (tmpl->data);
   }
   xmlXPathFreeObject (xpathObj);
-  printf ("fastidieux pute\n");
 }
 
 static void
@@ -520,7 +527,6 @@ calculate_transitions (GESTimelineLayer * layer)
     g_value_init (&v, GST_TYPE_INT64_RANGE);
     g_value_init (&a, GST_TYPE_INT64_RANGE);
     end = start + duration;
-    printf ("%lld\n", end);
     if (!xmlStrcmp (type, (xmlChar *) "simple")) {
       if (start < prev_video_end) {
         gst_value_set_int64_range (&v, start, prev_video_end);
@@ -554,7 +560,6 @@ calculate_transitions (GESTimelineLayer * layer)
   }
 
   make_transitions (audio_tr_list, video_tr_list, layer);
-  printf ("comment ??");
 }
 
 static void
@@ -667,9 +672,8 @@ set_property (GObject * src, gchar * prop_name, gchar * prop_value,
   prop_value = values_array[1];
   converted = g_ascii_strtoll ((gchar *) prop_value, NULL, 0);
   g_object_set (src, prop_name, converted, NULL);
-  printf ("converted : %lld\n", converted);
+  printf ("converted : %lld, %s\n", converted, prop_name);
   if (background != NULL) {
-    printf ("setting that shit\n");
     g_object_set (background, "duration", converted, "priority", 1000, NULL);
   }
   g_strfreev (values_array);

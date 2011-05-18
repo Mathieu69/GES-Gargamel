@@ -277,7 +277,6 @@ ges_objs_equal (GObject * a, GObject * b)
   typename = (gchar *) g_type_name (at);
 
   /* compare every readable property */
-
   klass = G_OBJECT_GET_CLASS (a);
   props = g_object_class_list_properties (klass, &n_props);
 
@@ -308,7 +307,6 @@ ges_objs_equal (GObject * a, GObject * b)
         goto fail;
       }
     }
-
     g_value_init (&av, (*iter)->value_type);
     g_value_init (&bv, (*iter)->value_type);
 
@@ -317,7 +315,8 @@ ges_objs_equal (GObject * a, GObject * b)
 
     g_object_get_property (a, (*iter)->name, &av);
     g_object_get_property (b, (*iter)->name, &bv);
-
+    printf ("%s, %s, %s\n", (*iter)->name, gst_value_serialize (&av),
+        gst_value_serialize (&bv));
     if (g_param_values_cmp (*iter, &av, &bv) != 0) {
       const gchar *a_str, *b_str;
 
@@ -332,7 +331,6 @@ ges_objs_equal (GObject * a, GObject * b)
     g_value_unset (&av);
     g_value_unset (&bv);
   }
-
   ret = TRUE;
 
 fail:
@@ -356,7 +354,6 @@ ges_layers_equal (GESTimelineLayer * a, GESTimelineLayer * b)
 
   if (!ges_objs_equal (G_OBJECT (a), G_OBJECT (b)))
     return FALSE;
-
   a_objs = ges_timeline_layer_get_objects (a);
   b_objs = ges_timeline_layer_get_objects (b);
 
@@ -390,7 +387,6 @@ static gboolean
 ges_timelines_equal (GESTimeline * a, GESTimeline * b)
 {
   GList *a_tracks, *b_tracks, *a_iter, *b_iter, *a_layers, *b_layers;
-
   gboolean ret = FALSE;
   guint i;
 
@@ -398,7 +394,6 @@ ges_timelines_equal (GESTimeline * a, GESTimeline * b)
     CMP_FAIL (b, "%p and %p are not of the same type");
     return FALSE;
   }
-
   a_tracks = ges_timeline_get_tracks (a);
   b_tracks = ges_timeline_get_tracks (b);
   a_layers = ges_timeline_get_layers (a);
@@ -639,18 +634,12 @@ GST_START_TEST (test_pitivi_file_load)
 {
   GESFormatter *formatter;
   GESTimeline *timeline, *expected;
-  GValue va = { 0 };
-  GValue vv = { 0 };
-  GstCaps *caps = { 0 };
   GESTrack *tracka = NULL;
   GESTrack *trackv = NULL;
   char cCurrentPath[FILENAME_MAX];
   char *a;
   gchar *uri;
-  gchar *caps_fielda, *caps_fieldv;
-  gchar type_fielda[] = "GES_TRACK_TYPE_AUDIO";
-  gchar type_fieldv[] = "GES_TRACK_TYPE_VIDEO";
-  GESTimelineLayer *layer;
+  GESTimelineLayer *layer, *back_layer;
   GESTimelineTestSource *testsrca, *testsrcb;
   GESTimelineStandardTransition *tr;
   GESTimelineTestSource *background;
@@ -659,34 +648,21 @@ GST_START_TEST (test_pitivi_file_load)
   expected = ges_timeline_new ();
 
   /* create the tracks */
-  caps_fieldv = (gchar *)
-      "video/x-raw-yuv, width=(int)720, height=(int)576, pixel-aspect-ratio=(fraction)16/15, framerate=(fraction)25/1; video/x-raw-rgb, width=(int)720, height=(int)576, pixel-aspect-ratio=(fraction)16/15, framerate=(fraction)25/1";
-
-  g_value_init (&vv, GES_TYPE_TRACK_TYPE);
-  gst_value_deserialize (&vv, type_fieldv);
-  caps = gst_caps_from_string (caps_fieldv);
-  trackv = ges_track_new (g_value_get_flags (&vv), caps);
+  tracka = ges_track_audio_raw_new ();
+  ges_timeline_add_track (expected, tracka);
+  trackv = ges_track_video_raw_new ();
   ges_timeline_add_track (expected, trackv);
 
-  caps_fielda = (gchar *)
-      "audio/x-raw-int, rate=(int)44100, channels=(int)2; audio/x-raw-float, rate=(int)44100, channels=(int)2";
-
-  g_value_init (&va, GES_TYPE_TRACK_TYPE);
-  gst_value_deserialize (&va, type_fielda);
-  caps = gst_caps_from_string (caps_fielda);
-  tracka = ges_track_new (g_value_get_flags (&va), caps);
-  ges_timeline_add_track (expected, tracka);
-
-  /* create the layer */
+  /* create the layers */
   layer = ges_timeline_layer_new ();
   g_object_set (layer, "priority", (gint32) 0, NULL);
+  back_layer = ges_timeline_layer_new ();
+  g_object_set (back_layer, "priority", (gint32) 99, NULL);
 
   ges_timeline_add_layer (expected, layer);
+  ges_timeline_add_layer (expected, back_layer);
 
   /* create the sources */
-  background = ges_timeline_test_source_new ();
-  ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (background));
-  g_object_set (background, "duration", (gint64) 1200000000LL, NULL);
 
   testsrca = ges_timeline_test_source_new ();
   ges_timeline_test_source_set_vpattern (testsrca, GES_VIDEO_TEST_PATTERN_RED);
@@ -704,7 +680,12 @@ GST_START_TEST (test_pitivi_file_load)
       "start", (gint64) 1200000000LL,
       "duration", (gint64) 1300000000LL, "in-point", (gint64) 0, NULL);
 
-  ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (background));
+  background = ges_timeline_test_source_new ();
+
+  ges_timeline_layer_add_object (back_layer, GES_TIMELINE_OBJECT (background));
+  g_object_set (background, "duration", (gint64) 1200000000LL,
+      "priority", 1000, NULL);
+
   ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (testsrca));
   ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (testsrcb));
   ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (tr));
@@ -742,8 +723,11 @@ GST_START_TEST (test_pitivi_file_save)
   uri = g_strconcat (a, "/testsave.xptv", NULL);
   load_uri = g_strconcat (a, "/test.xptv", NULL);
   //load_uri = (gchar *) "/home/mathieu/blobu.xptv";
+  printf ("1\n");
   ges_formatter_load_from_uri (formatter, timeline, load_uri);
+  printf ("2\n");
   ges_formatter_save_to_uri (formatter, timeline, uri);
+  printf ("3\n");
   ges_formatter_load_from_uri (formatter, serialized, uri);
   //TIMELINE_COMPARE (timeline, serialized);
   g_free (uri);
