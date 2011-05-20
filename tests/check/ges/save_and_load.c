@@ -315,8 +315,8 @@ ges_objs_equal (GObject * a, GObject * b)
 
     g_object_get_property (a, (*iter)->name, &av);
     g_object_get_property (b, (*iter)->name, &bv);
-    printf ("%s, %s, %s\n", (*iter)->name, gst_value_serialize (&av),
-        gst_value_serialize (&bv));
+    //printf ("%s, %s, %s\n", (*iter)->name, gst_value_serialize (&av),
+    //gst_value_serialize (&bv));
     if (g_param_values_cmp (*iter, &av, &bv) != 0) {
       const gchar *a_str, *b_str;
 
@@ -722,22 +722,21 @@ GST_START_TEST (test_pitivi_file_save)
   a = GetCurrentDir (cCurrentPath, sizeof (cCurrentPath));
   uri = g_strconcat (a, "/testsave.xptv", NULL);
   load_uri = g_strconcat (a, "/test.xptv", NULL);
-  //load_uri = (gchar *) "/home/mathieu/blobu.xptv";
-  printf ("1\n");
   ges_formatter_load_from_uri (formatter, timeline, load_uri);
-  printf ("2\n");
   ges_formatter_save_to_uri (formatter, timeline, uri);
-  printf ("3\n");
   ges_formatter_load_from_uri (formatter, serialized, uri);
-  //TIMELINE_COMPARE (timeline, serialized);
+  TIMELINE_COMPARE (timeline, serialized);
   g_free (uri);
   g_free (load_uri);
+  printf ("3.5\n");
   g_object_unref (timeline);
+  printf ("4\n");
   g_object_unref (formatter);
   g_object_unref (serialized);
 }
 
-GST_END_TEST
+GST_END_TEST;
+
 GST_START_TEST (test_keyfile_identity)
 {
 
