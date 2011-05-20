@@ -722,15 +722,16 @@ GST_START_TEST (test_pitivi_file_save)
   a = GetCurrentDir (cCurrentPath, sizeof (cCurrentPath));
   uri = g_strconcat (a, "/testsave.xptv", NULL);
   load_uri = g_strconcat (a, "/test.xptv", NULL);
+
   ges_formatter_load_from_uri (formatter, timeline, load_uri);
   ges_formatter_save_to_uri (formatter, timeline, uri);
   ges_formatter_load_from_uri (formatter, serialized, uri);
+
   TIMELINE_COMPARE (timeline, serialized);
+
   g_free (uri);
   g_free (load_uri);
-  printf ("3.5\n");
   g_object_unref (timeline);
-  printf ("4\n");
   g_object_unref (formatter);
   g_object_unref (serialized);
 }
