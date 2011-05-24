@@ -254,12 +254,10 @@ ges_timeline_standard_transition_new (GESVideoStandardTransitionType vtype)
  */
 
 void
-ges_timeline_standard_transition_set_video_only (GESTimelineObject *
+ges_timeline_standard_transition_set_video_only (GESTimelineStandardTransition *
     self, gboolean video_only)
 {
-  GESTimelineStandardTransition *trself =
-      (GESTimelineStandardTransition *) self;
-  trself->priv->video_only = video_only;
+  self->priv->video_only = video_only;
 }
 
 /**
@@ -273,12 +271,10 @@ ges_timeline_standard_transition_set_video_only (GESTimelineObject *
  */
 
 void
-ges_timeline_standard_transition_set_audio_only (GESTimelineObject *
+ges_timeline_standard_transition_set_audio_only (GESTimelineStandardTransition *
     self, gboolean audio_only)
 {
-  GESTimelineStandardTransition *trself =
-      (GESTimelineStandardTransition *) self;
-  trself->priv->audio_only = audio_only;
+  self->priv->audio_only = audio_only;
 }
 
 /**
