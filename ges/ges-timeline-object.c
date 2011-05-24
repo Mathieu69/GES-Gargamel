@@ -90,7 +90,8 @@ enum
 {
   EFFECT_ADDED,
   EFFECT_REMOVED,
-  LAST_SIGNAL
+  LAST_SIGNAL,
+  TRACK_OBJECT_ADDED
 };
 
 static guint ges_timeline_object_signals[LAST_SIGNAL] = { 0 };
@@ -294,6 +295,20 @@ ges_timeline_object_class_init (GESTimelineObjectClass * klass)
       G_SIGNAL_RUN_FIRST, 0, NULL, NULL, ges_marshal_VOID__OBJECT,
       G_TYPE_NONE, 1, GES_TYPE_TRACK_EFFECT);
 
+  /**
+   * GESTimelineObject::track-object-added
+   * @object: the #GESTimelineObject
+   * @effect: the #GESTrackObject that was added.
+   *
+   * Will be emitted after a track object was added to the object.
+   *
+   * Since: 0.10.2
+   */
+  ges_timeline_object_signals[TRACK_OBJECT_ADDED] =
+      g_signal_new ("track-object-added", G_TYPE_FROM_CLASS (klass),
+      G_SIGNAL_RUN_FIRST, 0, NULL, NULL, ges_marshal_VOID__OBJECT,
+      G_TYPE_NONE, 1, GES_TYPE_TRACK_OBJECT);
+
   klass->need_fill_track = TRUE;
 }
 
@@ -466,6 +481,9 @@ ges_timeline_object_add_track_object (GESTimelineObject * object, GESTrackObject
   object->priv->trackobjects =
       g_list_insert_sorted_with_data (object->priv->trackobjects, trobj,
       (GCompareDataFunc) sort_track_effects, object);
+
+  g_signal_emit (object, ges_timeline_object_signals[TRACK_OBJECT_ADDED], 0,
+      GES_TRACK_OBJECT (trobj));
 
   ges_track_object_set_start (trobj, object->start);
   ges_track_object_set_duration (trobj, object->duration);
