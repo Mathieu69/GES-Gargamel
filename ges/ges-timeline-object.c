@@ -90,8 +90,8 @@ enum
 {
   EFFECT_ADDED,
   EFFECT_REMOVED,
-  LAST_SIGNAL,
-  TRACK_OBJECT_ADDED
+  TRACK_OBJECT_ADDED,
+  LAST_SIGNAL
 };
 
 static guint ges_timeline_object_signals[LAST_SIGNAL] = { 0 };
@@ -377,6 +377,7 @@ ges_timeline_object_create_track_objects (GESTimelineObject * object,
     GESTrack * track)
 {
   GESTimelineObjectClass *klass;
+  gboolean ret;
 
   klass = GES_TIMELINE_OBJECT_GET_CLASS (object);
 
@@ -384,8 +385,9 @@ ges_timeline_object_create_track_objects (GESTimelineObject * object,
     GST_WARNING ("no GESTimelineObject::create_track_objects implentation");
     return FALSE;
   }
+  ret = klass->create_track_objects (object, track);
 
-  return klass->create_track_objects (object, track);
+  return ret;
 }
 
 /*
@@ -482,9 +484,6 @@ ges_timeline_object_add_track_object (GESTimelineObject * object, GESTrackObject
       g_list_insert_sorted_with_data (object->priv->trackobjects, trobj,
       (GCompareDataFunc) sort_track_effects, object);
 
-  g_signal_emit (object, ges_timeline_object_signals[TRACK_OBJECT_ADDED], 0,
-      GES_TRACK_OBJECT (trobj));
-
   ges_track_object_set_start (trobj, object->start);
   ges_track_object_set_duration (trobj, object->duration);
   ges_track_object_set_inpoint (trobj, object->inpoint);
@@ -516,6 +515,9 @@ ges_timeline_object_add_track_object (GESTimelineObject * object, GESTrackObject
       + mapping->priority_offset);
 
   GST_DEBUG ("Returning trobj:%p", trobj);
+
+  g_signal_emit (object, ges_timeline_object_signals[TRACK_OBJECT_ADDED], 0,
+      GES_TRACK_OBJECT (trobj));
 
   return TRUE;
 }

@@ -125,7 +125,6 @@ ges_timeline_dispose (GObject * object)
   while (priv->layers) {
     GESTimelineLayer *layer = (GESTimelineLayer *) priv->layers->data;
     ges_timeline_remove_layer (GES_TIMELINE (object), layer);
-    printf ("removing one layer\n");
   }
 
   /* FIXME: it should be possible to remove tracks before removing
