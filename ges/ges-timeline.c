@@ -232,6 +232,26 @@ ges_timeline_init (GESTimeline * self)
   gst_discoverer_start (self->priv->discoverer);
 }
 
+static gint
+sort_layers (gpointer a, gpointer b)
+{
+  GESTimelineLayer *layer_a, *layer_b;
+  guint prio_a, prio_b;
+
+  layer_a = GES_TIMELINE_LAYER (a);
+  layer_b = GES_TIMELINE_LAYER (b);
+
+  prio_a = ges_timeline_layer_get_priority (layer_a);
+  prio_b = ges_timeline_layer_get_priority (layer_b);
+
+  if ((gint) prio_a > (guint) prio_b)
+    return 1;
+  if ((guint) prio_a < (guint) prio_b)
+    return -1;
+
+  return 0;
+}
+
 /**
  * ges_timeline_new:
  *
@@ -579,6 +599,13 @@ layer_object_added_cb (GESTimelineLayer * layer, GESTimelineObject * object,
   GST_DEBUG ("done");
 }
 
+static void
+layer_priority_changed_cb (GESTimelineLayer * layer,
+    GParamSpec * arg G_GNUC_UNUSED, GESTimeline * timeline)
+{
+  timeline->priv->layers = g_list_sort (timeline->priv->layers, (GCompareFunc)
+      sort_layers);
+}
 
 static void
 layer_object_removed_cb (GESTimelineLayer * layer, GESTimelineObject * object,
@@ -644,7 +671,8 @@ ges_timeline_add_layer (GESTimeline * timeline, GESTimelineLayer * layer)
   }
 
   g_object_ref_sink (layer);
-  priv->layers = g_list_append (priv->layers, layer);
+  priv->layers = g_list_insert_sorted (priv->layers, layer,
+      (GCompareFunc) sort_layers);
 
   /* Inform the layer that it belongs to a new timeline */
   ges_timeline_layer_set_timeline (layer, timeline);
@@ -654,6 +682,8 @@ ges_timeline_add_layer (GESTimeline * timeline, GESTimelineLayer * layer)
       timeline);
   g_signal_connect (layer, "object-removed",
       G_CALLBACK (layer_object_removed_cb), timeline);
+  g_signal_connect (layer, "notify::priority",
+      G_CALLBACK (layer_priority_changed_cb), timeline);
 
   GST_DEBUG ("Done adding layer, emitting 'layer-added' signal");
   g_signal_emit (timeline, ges_timeline_signals[LAYER_ADDED], 0, layer);
