@@ -1008,7 +1008,7 @@ ges_timeline_get_tracks (GESTimeline * timeline)
  * Get the list of #GESTimelineLayer present in the Timeline.
  *
  * Returns: (transfer full) (element-type GESTimelineLayer): the list of
- * #GESTimelineLayer present in the Timeline.
+ * #GESTimelineLayer present in the Timeline sorted by priority.
  * The caller should unref each Layer once he is done with them.
  */
 GList *
@@ -1017,7 +1017,8 @@ ges_timeline_get_layers (GESTimeline * timeline)
   GList *tmp, *res = NULL;
 
   for (tmp = timeline->priv->layers; tmp; tmp = g_list_next (tmp)) {
-    res = g_list_append (res, g_object_ref (tmp->data));
+    res = g_list_insert_sorted (res, g_object_ref (tmp->data),
+        (GCompareFunc) sort_layers);
   }
 
   return res;
