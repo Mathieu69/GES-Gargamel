@@ -26,6 +26,8 @@
 #define GES_PITIVI_FORMATTER_GET_CLASS(obj) \
   (G_TYPE_INSTANCE_GET_CLASS ((obj), GES_TYPE_PITIVI_FORMATTER, GESPitiviFormatterClass))
 
+typedef struct _GESPitiviFormatterPrivate GESPitiviFormatterPrivate;
+
 /**
  * GESPitiviFormatter:
  *
@@ -33,8 +35,10 @@
  */
 
 struct _GESPitiviFormatter {
-  /*< private >*/
   GESFormatter parent;
+
+  /*< private >*/
+  GESPitiviFormatterPrivate *priv;
 
   /* Padding for API extension */
   gpointer _ges_reserved[GES_PADDING];
@@ -47,8 +51,6 @@ struct _GESPitiviFormatterClass {
   /* Padding for API extension */
   gpointer _ges_reserved[GES_PADDING];
 };
-
-typedef struct _GESPitiviFormatterPrivate GESPitiviFormatterPrivate;
 
 GType ges_pitivi_formatter_get_type (void);
 
