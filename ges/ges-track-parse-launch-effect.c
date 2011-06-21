@@ -55,7 +55,6 @@ ges_track_parse_launch_effect_get_property (GObject * object,
 {
   GESTrackParseLaunchEffectPrivate *priv =
       GES_TRACK_PARSE_LAUNCH_EFFECT (object)->priv;
-
   switch (property_id) {
     case PROP_BIN_DESCRIPTION:
       g_value_set_string (value, priv->bin_description);
