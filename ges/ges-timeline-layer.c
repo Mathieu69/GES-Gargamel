@@ -322,12 +322,6 @@ ges_timeline_layer_remove_object (GESTimelineLayer * layer,
   /* Remove our reference to the object */
   g_object_unref (object);
 
-  if (GES_IS_TIMELINE_TEST_SOURCE (object)
-      || GES_IS_TIMELINE_STANDARD_TRANSITION (object)
-      || GES_IS_TIMELINE_FILE_SOURCE (object)) {
-    g_object_unref (object);
-  }
-
   return TRUE;
 }
 
