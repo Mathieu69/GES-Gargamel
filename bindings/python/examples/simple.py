@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-#       simple.py
+# simple.py
 #
 # Copyright (C) 2011 Thibault Saunier <thibault.saunier@collabora.co.uk>
 # Copyright (C) 2011 Luis de Bethencourt <luis.debethencourt@collabora.com>
@@ -12,7 +12,7 @@
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
 # Lesser General Public License for more details.
 #
 # You should have received a copy of the GNU Lesser General Public
@@ -29,6 +29,7 @@ import optparse
 
 import glib
 import gobject
+
 gobject.threads_init()
 
 import gst
@@ -91,7 +92,6 @@ def main(args):
 
     parser = optparse.OptionParser (usage=usage)
     (options, args) = parser.parse_args ()
-
     simple = Simple(args)
     simple.run()
 
