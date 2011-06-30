@@ -33,9 +33,9 @@ static gboolean make_timeline_objects (GESFormatter * self);
 void set_properties (GObject * obj, GHashTable * props_table);
 void make_source (GList * ref_list,
     GHashTable * source_table, GESFormatter * self);
-void modify_transition (GESTimelineStandardTransition * tr, gint64 start,
-    gint64 duration, gint type);
 
+
+void make_transitions_for_track (GESTimelineLayer * layer, GESTrack * track);
 void layers_table_destroyer (gpointer data, gpointer data2, void *unused);
 void list_table_destroyer (gpointer data, gpointer data2, void *unused);
 void destroyer (gpointer data, gpointer data2, void *unused);
@@ -824,146 +824,100 @@ parse_track_objects (GESFormatter * self)
   return TRUE;
 }
 
+static gint
+objects_start_compare (GESTrackObject * a, GESTrackObject * b)
+{
+  gint64 a_start = 0, b_start = 0;
+  a_start = ges_track_object_get_start (a);
+  b_start = ges_track_object_get_start (b);
+  if (a_start == b_start) {
+    return 0;
+  }
+  if (a_start < b_start)
+    return -1;
+  if (a_start > b_start)
+    return 1;
+  return 0;
+}
+
+
+void
+make_transitions_for_track (GESTimelineLayer * layer, GESTrack * track)
+{
+  GList *tck_objects = NULL, *tmp = NULL, *tmp_tck = NULL;
+  GList *tl_tck_objects = NULL;
+  gint64 duration, start, in_point, prev_end = 0;
+  GESTimelineStandardTransition *tr = NULL;
+  gboolean needs_offset = FALSE, had_effect = FALSE;
+  gint effect_offset = 0;
+  gint offset = 1;
+  GESTimelineObject *tl_obj;
+  gint prio = 0;
+
+  tck_objects = ges_track_get_objects (track);
+  tck_objects = g_list_sort (tck_objects, (GCompareFunc) objects_start_compare);
+
+  for (tmp = tck_objects; tmp; tmp = tmp->next) {
+    if (!GES_IS_TRACK_FILESOURCE (tmp->data)) {
+      continue;
+    }
+    printf ("source\n");
+    tr = NULL;
+    needs_offset = TRUE;
+    g_object_get (tmp->data, "duration", &duration, NULL);
+    g_object_get (tmp->data, "start", &start, NULL);
+    g_object_get (tmp->data, "in_point", &in_point, NULL);
+
+    if (start < prev_end) {
+      tr = ges_timeline_standard_transition_new_for_nick ((char *)
+          "crossfade");
+      g_object_set (tr, "start", (gint64) start, "duration",
+          (gint64) prev_end - start, "in_point", (gint64) 0, NULL);
+      if (track->type == GES_TRACK_TYPE_AUDIO)
+        ges_timeline_standard_transition_set_audio_only (tr, TRUE);
+      else {
+        ges_timeline_standard_transition_set_video_only (tr, TRUE);
+      }
+      ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (tr));
+    }
+    tl_obj = ges_track_object_get_timeline_object (tmp->data);
+    if (track->type == GES_TRACK_TYPE_VIDEO) {
+      tl_tck_objects = ges_timeline_object_get_track_objects (tl_obj);
+      for (tmp_tck = tl_tck_objects; tmp_tck; tmp_tck = tmp_tck->next) {
+        if (GES_IS_TRACK_PARSE_LAUNCH_EFFECT (tmp_tck->data)) {
+          had_effect = TRUE;
+          needs_offset = FALSE;
+          effect_offset++;
+        }
+      }
+      g_list_free (tl_tck_objects);
+      if (had_effect && needs_offset) {
+        offset++;
+        had_effect = FALSE;
+      }
+      g_object_set (tl_obj, "priority", offset, NULL);
+    }
+    if (tr && track->type == GES_TRACK_TYPE_VIDEO)
+      g_object_set (tr, "priority", effect_offset, NULL);
+    g_object_get (tl_obj, "priority", &prio, NULL);
+    if (prio == 0)
+      g_object_set (tl_obj, "priority", offset + effect_offset, NULL);
+    prev_end = duration + start;
+    if (had_effect)
+      offset++;
+  }
+  g_list_free (tck_objects);
+}
+
 static gboolean
 calculate_transitions (GESTimelineLayer * layer, GESFormatter * self)
 {
-  GESTimelineStandardTransition *tr = NULL;
+  GESPitiviFormatterPrivate *priv = GES_PITIVI_FORMATTER (self)->priv;
 
-  GList *tl_objects = NULL, *tck_objects = NULL;
-  GList *tmp = NULL, *tmp_tck = NULL;
-  gint64 prev_video_end = 0, prev_audio_end = 0;
-  gboolean v_avail = FALSE, a_avail = FALSE;
-  gint prio, offset = 1;
-  tl_objects = ges_timeline_layer_get_objects (layer);
+  make_transitions_for_track (layer, priv->tracka);
+  make_transitions_for_track (layer, priv->trackv);
 
-  for (tmp = tl_objects; tmp; tmp = tmp->next) {
-    gint64 duration, start, in_point;
-    if GES_IS_TIMELINE_TEXT_OVERLAY
-      (tmp->data) {
-      g_object_unref (tmp->data);
-      continue;
-      }
-    tck_objects = ges_timeline_object_get_track_objects (tmp->data);
-    for (tmp_tck = tck_objects; tmp_tck; tmp_tck = tmp_tck->next) {
-      if (!ges_track_object_is_active (tmp_tck->data)) {
-        continue;
-      }
-
-      if GES_IS_TRACK_PARSE_LAUNCH_EFFECT
-        (tmp_tck->data) {
-        continue;
-        }
-      if (ges_track_object_get_track (tmp_tck->data)->type ==
-          GES_TRACK_TYPE_VIDEO) {
-        g_object_get (tmp_tck->data, "duration", &duration, NULL);
-        g_object_get (tmp_tck->data, "start", &start, NULL);
-        g_object_get (tmp_tck->data, "in_point", &in_point, NULL);
-        if (start < prev_video_end && (!v_avail)) {
-          if (a_avail) {
-            ges_timeline_standard_transition_set_video_only (tr, TRUE);
-            ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (tr));
-          }
-          tr = ges_timeline_standard_transition_new_for_nick ((char *)
-              "crossfade");
-          g_object_set (tr, "start", (gint64) start, "duration",
-              (gint64) prev_video_end - start, "in_point", (gint64) 0, NULL);
-          a_avail = TRUE;
-          offset++;
-        } else if (start < prev_video_end) {
-          ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (tr));
-          modify_transition (tr, start, prev_video_end - start, 0);
-          v_avail = FALSE;
-          a_avail = FALSE;
-        }
-
-        prev_video_end = duration + start;
-
-      } else {
-        g_object_get (tmp_tck->data, "duration", &duration, NULL);
-        g_object_get (tmp_tck->data, "start", &start, NULL);
-        g_object_get (tmp_tck->data, "in_point", &in_point, NULL);
-        if (start < prev_audio_end && (!a_avail)) {
-          if (v_avail) {
-            ges_timeline_standard_transition_set_audio_only (tr, TRUE);
-            ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (tr));
-          }
-          tr = ges_timeline_standard_transition_new_for_nick ((char *)
-              "crossfade");
-          g_object_set (tr, "start", (gint64) start, "duration",
-              (gint64) prev_audio_end - start, "in_point", (gint64) 0, NULL);
-          v_avail = TRUE;
-          offset++;
-        } else if (start < prev_audio_end) {
-          ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (tr));
-          modify_transition (tr, start, prev_audio_end - start, 1);
-          a_avail = FALSE;
-          v_avail = FALSE;
-        }
-        prev_audio_end = duration + start;
-      }
-      if GES_IS_TIMELINE_FILE_SOURCE
-        (tmp->data) {
-        }
-
-    }
-  }
-
-  if (tr != NULL) {
-    if (v_avail) {
-      ges_timeline_standard_transition_set_audio_only (tr, TRUE);
-    } else if (a_avail) {
-      ges_timeline_standard_transition_set_video_only (tr, TRUE);
-    }
-    ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (tr));
-  }
-
-  tl_objects = ges_timeline_layer_get_objects (layer);
-
-  for (tmp = tl_objects; tmp; tmp = tmp->next) {
-    g_object_get (tmp->data, "priority", &prio, NULL);
-    if (GES_IS_TIMELINE_TEXT_OVERLAY (tmp->data)) {
-      continue;
-    }
-    if (GES_IS_TIMELINE_STANDARD_TRANSITION (tmp->data)) {
-      continue;
-    }
-    g_object_set (tmp->data, "priority", offset, NULL);
-    g_object_unref (tmp->data);
-  }
-
-  g_object_unref (layer);
-  g_list_free (tl_objects);
   return TRUE;
-}
-
-void
-modify_transition (GESTimelineStandardTransition * tr, gint64 start,
-    gint64 duration, gint type)
-{
-  GList *trackobjects, *tmp;
-
-  trackobjects =
-      ges_timeline_object_get_track_objects (GES_TIMELINE_OBJECT (tr));
-
-  for (tmp = trackobjects; tmp; tmp = tmp->next) {
-
-    if (GES_IS_TRACK_AUDIO_TRANSITION (tmp->data) && type) {
-      GESTrackAudioTransition *obj;
-      obj = (GESTrackAudioTransition *) tmp->data;
-      ges_track_object_set_locked (GES_TRACK_OBJECT (obj), FALSE);
-      g_object_set (obj, "start", (gint64) start, "duration",
-          (gint64) duration, "in-point", (gint64) 0, NULL);
-      ges_track_object_set_locked (GES_TRACK_OBJECT (obj), TRUE);
-
-    } else if (GES_IS_TRACK_VIDEO_TRANSITION (tmp->data)) {
-      GESTrackVideoTransition *obj;
-      obj = (GESTrackVideoTransition *) tmp->data;
-      ges_track_object_set_locked (GES_TRACK_OBJECT (obj), FALSE);
-      g_object_set (obj, "start", (gint64) start, "duration",
-          (gint64) duration, "in-point", (gint64) 0, NULL);
-      ges_track_object_set_locked (GES_TRACK_OBJECT (obj), TRUE);
-    }
-  }
 }
 
 static gboolean
@@ -1015,7 +969,6 @@ parse_timeline_objects (GESFormatter * self)
     g_list_free (tmp_list);
     g_list_free (tmp);
   }
-
   xmlXPathFreeObject (xpathObj);
   return TRUE;
 }
@@ -1088,6 +1041,10 @@ track_object_added_cb (GESTimelineObject * object,
   GList *layers = NULL;
   GESPitiviFormatterPrivate *priv;
   GESFormatter *self;
+  GESTrack *object_track;
+  gint64 start, duration;
+  gboolean has_effect = FALSE;
+  gint type = 0;
   tck_objs = ges_timeline_object_get_track_objects (object);
   media_type =
       (gchar *) g_hash_table_lookup (props_table, (gchar *) "media_type");
@@ -1104,33 +1061,52 @@ track_object_added_cb (GESTimelineObject * object,
   }
 
   for (tmp = tck_objs; tmp; tmp = tmp->next) {
+    object_track = ges_track_object_get_track (tmp->data);
     if (GES_IS_TRACK_PARSE_LAUNCH_EFFECT (tmp->data)) {
+      has_effect = TRUE;
       continue;
     }
     if ((!g_strcmp0 (media_type, "pitivi.stream.VideoStream")
-            && ges_track_object_get_track (tmp->data)->type ==
-            GES_TRACK_TYPE_VIDEO)
+            && object_track->type == GES_TRACK_TYPE_VIDEO)
         || (!g_strcmp0 (media_type, "pitivi.stream.AudioStream")
-            && ges_track_object_get_track (tmp->data)->type ==
-            GES_TRACK_TYPE_AUDIO)) {
+            && object_track->type == GES_TRACK_TYPE_AUDIO)) {
       ges_track_object_set_locked (tmp->data, FALSE);
       set_properties (G_OBJECT (tmp->data), props_table);
       ges_track_object_set_locked (tmp->data, TRUE);
+      type = object_track->type;
+      g_object_get (tmp->data, "start", &start, "duration", &duration, NULL);
+    }
+  }
+
+  if (has_effect) {
+    tck_objs = ges_timeline_object_get_track_objects (object);
+    for (tmp = tck_objs; tmp; tmp = tmp->next) {
+      object_track = ges_track_object_get_track (tmp->data);
+      if (GES_IS_TRACK_PARSE_LAUNCH_EFFECT (tmp->data)
+          && (type == object_track->type)) {
+        ges_track_object_set_locked (tmp->data, FALSE);
+        g_object_set (tmp->data, "start", start, "duration", duration, NULL);
+        ges_track_object_set_locked (tmp->data, TRUE);
+      }
     }
   }
 
 remove:
   for (tmp = tck_objs; tmp; tmp = tmp->next) {
+    GESTrack *track;
     if GES_IS_TRACK_PARSE_LAUNCH_EFFECT
       (tmp->data) {
       continue;
       }
-    if ((ges_track_object_get_track (tmp->data)->type == GES_TRACK_TYPE_AUDIO &&
+    track = ges_track_object_get_track (tmp->data);
+    if ((track->type == GES_TRACK_TYPE_AUDIO &&
             (!g_strcmp0 (media_type, (gchar *) "pitivi.stream.VideoStream"))) ||
-        (ges_track_object_get_track (tmp->data)->type == GES_TRACK_TYPE_VIDEO &&
+        (track->type == GES_TRACK_TYPE_VIDEO &&
             (!g_strcmp0 (media_type, (gchar *) "pitivi.stream.AudioStream")))) {
-      if (g_hash_table_lookup (props_table, "remove"))
-        ges_track_object_set_active (tmp->data, FALSE);
+      if (g_hash_table_lookup (props_table, "remove")) {
+        ges_timeline_object_release_track_object (object, tmp->data);
+        ges_track_remove_object (track, tmp->data);
+      }
     }
   }
   if (!priv->not_done && priv->parsed) {
@@ -1147,8 +1123,8 @@ remove:
           g_object_set (priv->background, "duration", dur_v, NULL);
         }
       }
-      g_list_free (layers);
     }
+    g_list_free (layers);
   }
 }
 
@@ -1193,3 +1169,4 @@ ges_pitivi_formatter_new (void)
 {
   return g_object_new (GES_TYPE_PITIVI_FORMATTER, NULL);
 }
+int list[3] = { 2, 2, 2 };

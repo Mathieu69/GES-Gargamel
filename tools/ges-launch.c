@@ -398,11 +398,11 @@ load_project (gchar * uri)
   GMainLoop *mainloop;
   GESTimelinePipeline *pipeline;
   GstBus *bus;
-  gchar *container = (gchar *) "video/x-msvideo";
-  gchar *audio = (gchar *) "audio/mpeg,mpegversion=4";
-  gchar *video = (gchar *) "video/x-msmpeg,msmpegversion=43";
-  gchar *video_restriction = (gchar *) "ANY";
-  gchar *outputuri = (gchar *) "file:///media/320/pute.avi";
+  //gchar *container = (gchar *) "video/x-msvideo";
+  //gchar *audio = (gchar *) "audio/mpeg,mpegversion=4";
+  //gchar *video = (gchar *) "video/x-msmpeg,msmpegversion=43";
+  //gchar *video_restriction = (gchar *) "ANY";
+  //gchar *outputuri = (gchar *) "file:///media/320/pute.avi";
 
   formatter = GES_FORMATTER (ges_pitivi_formatter_new ());
   timeline = ges_timeline_new ();
@@ -412,11 +412,11 @@ load_project (gchar * uri)
 
   ges_timeline_pipeline_add_timeline (pipeline, timeline);
   ges_formatter_load_from_uri (formatter, timeline, uri);
-  //ges_timeline_pipeline_set_mode (pipeline, TIMELINE_MODE_PREVIEW_VIDEO);
+  ges_timeline_pipeline_set_mode (pipeline, TIMELINE_MODE_PREVIEW_VIDEO);
   printf ("guh ??\n");
-  ges_timeline_pipeline_set_render_settings (pipeline, outputuri,
-      make_encoding_profile (audio, video, video_restriction, container));
-  ges_timeline_pipeline_set_mode (pipeline, TIMELINE_MODE_SMART_RENDER);
+  //ges_timeline_pipeline_set_render_settings (pipeline, outputuri,
+  //make_encoding_profile (audio, video, video_restriction, container));
+  //ges_timeline_pipeline_set_mode (pipeline, TIMELINE_MODE_SMART_RENDER);
 
   gst_element_set_state (GST_ELEMENT (pipeline), GST_STATE_PLAYING);
   printf ("playing ...\n");
