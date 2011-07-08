@@ -33,6 +33,7 @@
 #include "ges-track.h"
 #include "ges-track-object.h"
 #include "gesmarshal.h"
+#include "stdio.h"
 
 G_DEFINE_TYPE (GESTrack, ges_track, GST_TYPE_BIN);
 
@@ -335,6 +336,26 @@ ges_track_set_caps (GESTrack * track, const GstCaps * caps)
   /* FIXME : update all trackobjects ? */
 }
 
+
+/* FIXME : put the compare function in the utils */
+
+static gint
+objects_start_compare (GESTrackObject * a, GESTrackObject * b)
+{
+  if (a->start == b->start) {
+    if (a->priority < b->priority)
+      return -1;
+    if (a->priority > b->priority)
+      return 1;
+    return 0;
+  }
+  if (a->start < b->start)
+    return -1;
+  if (a->start > b->start)
+    return 1;
+  return 0;
+}
+
 /**
  * ges_track_add_object:
  * @track: a #GESTrack
@@ -383,12 +404,30 @@ ges_track_add_object (GESTrack * track, GESTrackObject * object)
   }
 
   g_object_ref_sink (object);
-
-  track->priv->trackobjects = g_list_append (track->priv->trackobjects, object);
+  track->priv->trackobjects =
+      g_list_insert_sorted (track->priv->trackobjects, object,
+      (GCompareFunc) objects_start_compare);
   g_signal_emit (track, ges_track_signals[TRACK_OBJECT_ADDED], 0,
       GES_TRACK_OBJECT (object));
 
   return TRUE;
+}
+
+GList *
+ges_track_get_objects (GESTrack * track)
+{
+  GList *ret = NULL;
+  GList *tmp;
+
+  g_return_val_if_fail (GES_IS_TRACK (track), NULL);
+
+  for (tmp = track->priv->trackobjects; tmp; tmp = tmp->next) {
+    ret = g_list_prepend (ret, tmp->data);
+    g_object_ref (tmp->data);
+  }
+
+  ret = g_list_reverse (ret);
+  return ret;
 }
 
 /**
