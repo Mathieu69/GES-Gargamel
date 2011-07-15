@@ -861,7 +861,7 @@ make_transitions_for_track (GESTimelineLayer * layer, GESTrack * track)
     if (!GES_IS_TRACK_FILESOURCE (tmp->data)) {
       continue;
     }
-    printf ("source\n");
+    printf ("source bordel\n");
     tr = NULL;
     needs_offset = TRUE;
     g_object_get (tmp->data, "duration", &duration, NULL);
@@ -983,14 +983,32 @@ static gboolean
 create_tracks (GESFormatter * self)
 {
   GESPitiviFormatterPrivate *priv = GES_PITIVI_FORMATTER (self)->priv;
+  GList *tracks = NULL;
+
+  tracks = ges_timeline_get_tracks (priv->timeline);
+  if (g_list_length (tracks)) {
+    GList *tmp = NULL;
+    GESTrack *track;
+    for (tmp = tracks; tmp; tmp = tmp->next) {
+      track = tmp->data;
+      if (track->type == GES_TRACK_TYPE_AUDIO) {
+        priv->tracka = track;
+      } else {
+        priv->trackv = track;
+      }
+    }
+    g_list_free (tracks);
+    return TRUE;
+  }
+
   priv->tracka = ges_track_audio_raw_new ();
   priv->trackv = ges_track_video_raw_new ();
 
-  if (!ges_timeline_add_track (priv->timeline, priv->tracka)) {
+  if (!ges_timeline_add_track (priv->timeline, priv->trackv)) {
     return FALSE;
   }
 
-  if (!ges_timeline_add_track (priv->timeline, priv->trackv)) {
+  if (!ges_timeline_add_track (priv->timeline, priv->tracka)) {
     return FALSE;
   }
 
