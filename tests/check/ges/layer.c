@@ -292,6 +292,43 @@ GST_START_TEST (test_layer_priorities)
 
 GST_END_TEST;
 
+GST_START_TEST (test_layer_automatic_transition)
+{
+  GESTimeline *timeline;
+  GESTimelineLayer *layer;
+  GESTimelineTestSource *src, *srcbis;
+  GList *objects = NULL, *tmp = NULL;
+  gboolean res = FALSE;
+
+  timeline = ges_timeline_new_audio_video ();
+  layer = ges_timeline_layer_new ();
+  ges_timeline_add_layer (timeline, layer);
+  g_object_set (layer, "auto-transition", TRUE, NULL);
+  src = ges_timeline_test_source_new ();
+  srcbis = ges_timeline_test_source_new ();
+
+  g_object_set (srcbis, "start", (gint64) 5000LL, "duration", (gint64) 10000LL,
+      NULL);
+  g_object_set (src, "start", (gint64) 0LL, "duration", (gint64) 10000LL, NULL);
+
+  ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (src));
+  ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (srcbis));
+
+  objects = ges_timeline_layer_get_objects (layer);
+
+  for (tmp = objects; tmp; tmp = tmp->next) {
+    if (GES_IS_TIMELINE_STANDARD_TRANSITION (tmp->data)) {
+      res = TRUE;
+    }
+  }
+
+  fail_unless (res == TRUE);
+  printf ("zob\n");
+}
+
+GST_END_TEST;
+
+
 static Suite *
 ges_suite (void)
 {
@@ -302,6 +339,7 @@ ges_suite (void)
 
   tcase_add_test (tc_chain, test_layer_properties);
   tcase_add_test (tc_chain, test_layer_priorities);
+  tcase_add_test (tc_chain, test_layer_automatic_transition);
 
   return s;
 }
