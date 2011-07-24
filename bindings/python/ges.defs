@@ -1194,6 +1194,24 @@
   )
 )
 
+(define-method set_video_only
+  (of-object "GESTimelineStandardTransition")
+  (c-name "ges_timeline_standard_transition_set_video_only")
+  (return-type "none")
+  (parameters
+    '("gboolean" "video_only")
+  )
+)
+
+(define-method set_audio_only
+  (of-object "GESTimelineStandardTransition")
+  (c-name "ges_timeline_standard_transition_set_audio_only")
+  (return-type "none")
+  (parameters
+    '("gboolean" "audio_only")
+  )
+)
+
 
 
 ;; From ges-timeline-test-source.h
