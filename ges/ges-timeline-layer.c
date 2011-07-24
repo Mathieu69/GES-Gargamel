@@ -35,22 +35,33 @@
 
 #define LAYER_HEIGHT 10
 
+void track_object_added_cb (GESTimelineObject * object,
+    GESTrackObject * track_object, GESTimelineLayer * layer);
+static void track_object_start_changed_cb (GESTrackObject * track_object,
+    GParamSpec * arg G_GNUC_UNUSED, GESTimelineObject * object);
+void calculate_transition (GESTrackObject * track_object,
+    GESTimelineObject * object);
+
 G_DEFINE_TYPE (GESTimelineLayer, ges_timeline_layer, G_TYPE_INITIALLY_UNOWNED);
 
 struct _GESTimelineLayerPrivate
 {
   /*< private > */
-  GSList *objects_start;        /* The TimelineObjects sorted by start and
+  GList *objects_start;         /* The TimelineObjects sorted by start and
                                  * priority */
 
   guint32 priority;             /* The priority of the layer within the 
                                  * containing timeline */
+
+  gboolean auto_transition;
 };
 
 enum
 {
   PROP_0,
   PROP_PRIORITY,
+  PROP_AUTO_TRANSITION,
+  PROP_LAST
 };
 
 enum
@@ -74,6 +85,9 @@ ges_timeline_layer_get_property (GObject * object, guint property_id,
     case PROP_PRIORITY:
       g_value_set_uint (value, layer->priv->priority);
       break;
+    case PROP_AUTO_TRANSITION:
+      g_value_set_boolean (value, layer->priv->auto_transition);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
   }
@@ -88,6 +102,10 @@ ges_timeline_layer_set_property (GObject * object, guint property_id,
   switch (property_id) {
     case PROP_PRIORITY:
       ges_timeline_layer_set_priority (layer, g_value_get_uint (value));
+      break;
+    case PROP_AUTO_TRANSITION:
+      ges_timeline_layer_set_auto_transition (layer,
+          g_value_get_boolean (value));
       break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, property_id, pspec);
@@ -133,6 +151,15 @@ ges_timeline_layer_class_init (GESTimelineLayerClass * klass)
           "The priority of the layer", 0, G_MAXUINT, 0, G_PARAM_READWRITE));
 
   /**
+   * GESTimelineLayer:auto_transitioning
+   *
+   * Sets whether transitions are added automatically when timeline objects overlap
+   */
+  g_object_class_install_property (object_class, PROP_AUTO_TRANSITION,
+      g_param_spec_boolean ("auto-transition", "Auto-Transition",
+          "whether the transitions are added", FALSE, G_PARAM_READWRITE));
+
+  /**
    * GESTimelineLayer::object-added
    * @layer: the #GESTimelineLayer
    * @object: the #GESTimelineObject that was added.
@@ -157,7 +184,6 @@ ges_timeline_layer_class_init (GESTimelineLayerClass * klass)
       G_SIGNAL_RUN_FIRST, G_STRUCT_OFFSET (GESTimelineLayerClass,
           object_removed), NULL, NULL, ges_marshal_VOID__OBJECT, G_TYPE_NONE, 1,
       GES_TYPE_TIMELINE_OBJECT);
-
 }
 
 static void
@@ -167,6 +193,7 @@ ges_timeline_layer_init (GESTimelineLayer * self)
       GES_TYPE_TIMELINE_LAYER, GESTimelineLayerPrivate);
 
   self->priv->priority = 0;
+  self->priv->auto_transition = FALSE;
   self->min_gnl_priority = 0;
   self->max_gnl_priority = 9;
 }
@@ -230,6 +257,7 @@ ges_timeline_layer_add_object (GESTimelineLayer * layer,
 {
   GESTimelineLayer *tl_obj_layer;
   guint32 maxprio, minprio, prio;
+  GList *tmp;
 
   GST_DEBUG ("layer:%p, object:%p", layer, object);
 
@@ -245,8 +273,15 @@ ges_timeline_layer_add_object (GESTimelineLayer * layer,
 
   /* Take a reference to the object and store it stored by start/priority */
   layer->priv->objects_start =
-      g_slist_insert_sorted (layer->priv->objects_start, object,
+      g_list_insert_sorted (layer->priv->objects_start, object,
       (GCompareFunc) objects_start_compare);
+
+  tmp = g_list_find (layer->priv->objects_start, object);
+  if (GES_IS_TIMELINE_FILE_SOURCE (tmp->data)
+      && (ges_timeline_layer_get_priority (layer) != 99)) {
+    g_signal_connect (G_OBJECT (tmp->data), "track-object-added",
+        G_CALLBACK (track_object_added_cb), layer);
+  }
 
   /* Inform the object it's now in this layer */
   ges_timeline_object_set_layer (object, layer);
@@ -261,7 +296,7 @@ ges_timeline_layer_add_object (GESTimelineLayer * layer,
   prio = GES_TIMELINE_OBJECT_PRIORITY (object);
   if (minprio + prio > (maxprio)) {
     GST_WARNING ("%p is out of the layer %p space, setting its priority to "
-        "setting its priority %d to the maximum priority of the layer %d",
+        "setting its priority %d to failthe maximum priority of the layer %d",
         object, layer, prio, maxprio - minprio);
     ges_timeline_object_set_priority (object, LAYER_HEIGHT - 1);
   }
@@ -274,6 +309,104 @@ ges_timeline_layer_add_object (GESTimelineLayer * layer,
   g_signal_emit (layer, ges_timeline_layer_signals[OBJECT_ADDED], 0, object);
 
   return TRUE;
+}
+
+void
+track_object_added_cb (GESTimelineObject * object,
+    GESTrackObject * track_object, GESTimelineLayer * layer)
+{
+  g_signal_connect (G_OBJECT (track_object), "notify::start",
+      G_CALLBACK (track_object_start_changed_cb), object);
+
+  calculate_transition (track_object, object);
+
+  return;
+}
+
+
+static void
+track_object_start_changed_cb (GESTrackObject * track_object,
+    GParamSpec * arg G_GNUC_UNUSED, GESTimelineObject * object)
+{
+  calculate_transition (track_object, object);
+}
+
+void
+calculate_transition (GESTrackObject * track_object, GESTimelineObject * object)
+{
+  GESTrack *track;
+  GList *trackobjects, *cur, *prev, *next;
+  gint priority;
+  gint64 start, prev_start, prev_duration;
+  GESTimelineLayer *layer;
+  GESTimelineStandardTransition *tr = NULL;
+
+  layer = ges_timeline_object_get_layer (object);
+  track = ges_track_object_get_track (track_object);
+  trackobjects = ges_track_get_objects (track);
+  cur = g_list_find (trackobjects, track_object);
+  printf ("start : %lld\n", ges_track_object_get_start (cur->data));
+  prev = cur->prev;
+  next = cur->next;
+  priority = ges_timeline_layer_get_priority (layer);
+
+  g_object_get (object, "priority", &priority, NULL);
+  printf ("prio : %d\n", priority);
+
+  if (prev != NULL) {
+    while (!GES_IS_TRACK_FILESOURCE (prev->data)) {
+      if (GES_IS_TRACK_AUDIO_TRANSITION (prev->data)
+          || GES_IS_TRACK_VIDEO_TRANSITION (prev->data)) {
+        tr = GES_TIMELINE_STANDARD_TRANSITION
+            (ges_track_object_get_timeline_object (prev->data));
+        printf ("we found the transition\n");
+      }
+      prev = prev->prev;
+      if (prev == NULL) {
+        break;
+      }
+    }
+  }
+
+  if (next != NULL) {
+    if (GES_IS_TRACK_AUDIO_TRANSITION (next->data)
+        || GES_IS_TRACK_VIDEO_TRANSITION (next->data)) {
+      tr = GES_TIMELINE_STANDARD_TRANSITION
+          (ges_track_object_get_timeline_object (next->data));
+      printf ("we found the transition\n");
+    }
+  }
+
+  if (prev != NULL) {
+    start = ges_track_object_get_start (cur->data);
+    prev_start = ges_track_object_get_start (prev->data);
+    prev_duration = ges_track_object_get_duration (prev->data);
+    if (start < prev_start + prev_duration) {
+      if (tr == NULL) {
+        gint type;
+        type = track->type;
+        printf ("making a new transition\n");
+        tr = ges_timeline_standard_transition_new_for_nick ((gchar *)
+            "crossfade");
+        if (type == GES_TRACK_TYPE_AUDIO)
+          ges_timeline_standard_transition_set_audio_only (tr, TRUE);
+        else
+          ges_timeline_standard_transition_set_video_only (tr, TRUE);
+        ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (tr));
+        g_object_get (prev->data, "priority", &priority, NULL);
+        g_object_set (ges_track_object_get_timeline_object (cur->data),
+            "priority", priority + 1, NULL);
+      }
+      g_object_set (tr, "start", start, "duration",
+          (prev_start + prev_duration - start), NULL);
+      g_object_get (object, "priority", &priority, NULL);
+      printf ("prio after : %d\n", priority);
+      ges_timeline_layer_resync_priorities (layer);
+    } else if (tr != NULL) {
+      printf ("removed why u no see that ?!\n");
+      ges_timeline_layer_remove_object (layer, GES_TIMELINE_OBJECT (tr));
+    }
+  }
 }
 
 /**
@@ -317,7 +450,7 @@ ges_timeline_layer_remove_object (GESTimelineLayer * layer,
 
   /* Remove it from our list of controlled objects */
   layer->priv->objects_start =
-      g_slist_remove (layer->priv->objects_start, object);
+      g_list_remove (layer->priv->objects_start, object);
 
   /* Remove our reference to the object */
   g_object_unref (object);
@@ -335,7 +468,7 @@ ges_timeline_layer_remove_object (GESTimelineLayer * layer,
 gboolean
 ges_timeline_layer_resync_priorities (GESTimelineLayer * layer)
 {
-  GSList *tmp;
+  GList *tmp;
   GESTimelineObject *obj;
 
   GST_DEBUG ("Resync priorities of %p", layer);
@@ -377,6 +510,39 @@ ges_timeline_layer_set_priority (GESTimelineLayer * layer, guint priority)
 }
 
 /**
+ * ges_timeline_layer_get_auto_transition:
+ * @layer: a #GESTimelineLayer
+ *
+ * Get the priority of @layer within the timeline.
+ *
+ * Returns: The priority of the @layer within the timeline.
+ */
+gboolean
+ges_timeline_layer_get_auto_transition (GESTimelineLayer * layer)
+{
+  g_return_val_if_fail (GES_IS_TIMELINE_LAYER (layer), 0);
+
+  return layer->priv->auto_transition;
+}
+
+/**
+ * ges_timeline_layer_set_auto_transition:
+ * @layer: a #GESTimelineLayer
+ * @priority: whether the auto_transition is active
+ *
+ * Sets the layer to the given @auto_transition. See the documentation of the
+ * priority auto_transition for more information.
+ */
+void
+ges_timeline_layer_set_auto_transition (GESTimelineLayer * layer,
+    gboolean auto_transition)
+{
+  g_return_if_fail (GES_IS_TIMELINE_LAYER (layer));
+
+  layer->priv->auto_transition = auto_transition;
+}
+
+/**
  * ges_timeline_layer_get_priority:
  * @layer: a #GESTimelineLayer
  *
@@ -407,7 +573,7 @@ GList *
 ges_timeline_layer_get_objects (GESTimelineLayer * layer)
 {
   GList *ret = NULL;
-  GSList *tmp;
+  GList *tmp;
   GESTimelineLayerClass *klass;
 
   g_return_val_if_fail (GES_IS_TIMELINE_LAYER (layer), NULL);
