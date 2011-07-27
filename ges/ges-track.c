@@ -70,6 +70,9 @@ static void
 pad_removed_cb (GstElement * element, GstPad * pad, GESTrack * track);
 static void composition_duration_cb (GstElement * composition, GParamSpec * arg
     G_GNUC_UNUSED, GESTrack * obj);
+static void
+sort_track_objects_cb (GESTrackObject * child,
+    GParamSpec * arg G_GNUC_UNUSED, GESTrack * track);
 
 static void
 ges_track_get_property (GObject * object, guint property_id,
@@ -410,6 +413,12 @@ ges_track_add_object (GESTrack * track, GESTrackObject * object)
   g_signal_emit (track, ges_track_signals[TRACK_OBJECT_ADDED], 0,
       GES_TRACK_OBJECT (object));
 
+  g_signal_connect (GES_TRACK_OBJECT (object), "notify::start",
+      G_CALLBACK (sort_track_objects_cb), track);
+
+  g_signal_connect (GES_TRACK_OBJECT (object), "notify::priority",
+      G_CALLBACK (sort_track_objects_cb), track);
+
   return TRUE;
 }
 
@@ -533,6 +542,15 @@ composition_duration_cb (GstElement * composition,
     g_object_notify (G_OBJECT (obj), "duration");
 #endif
   }
+}
+
+static void
+sort_track_objects_cb (GESTrackObject * child,
+    GParamSpec * arg G_GNUC_UNUSED, GESTrack * track)
+{
+  track->priv->trackobjects =
+      g_list_sort (track->priv->trackobjects,
+      (GCompareFunc) objects_start_compare);
 }
 
 /**
