@@ -40,8 +40,9 @@ void layers_table_destroyer (gpointer data, gpointer data2, void *unused);
 void list_table_destroyer (gpointer data, gpointer data2, void *unused);
 void destroyer (gpointer data, gpointer data2, void *unused);
 void ultimate_table_destroyer (gpointer data, gpointer data2, void *unused);
-static void track_object_added_cb (GESTimelineObject * object,
-    GESTrack * tck, GHashTable * props_table);
+static void
+track_object_added_cb (GESTimelineObject * object,
+    GESTrackObject * track_object, GHashTable * props_table);
 
 struct _GESPitiviFormatterPrivate
 {
@@ -853,7 +854,6 @@ make_transitions_for_track (GESTimelineLayer * layer, GESTrack * track)
   gint offset = 1;
   GESTimelineObject *tl_obj;
   gint prio = 0;
-
   tck_objects = ges_track_get_objects (track);
   tck_objects = g_list_sort (tck_objects, (GCompareFunc) objects_start_compare);
 
@@ -912,10 +912,10 @@ make_transitions_for_track (GESTimelineLayer * layer, GESTrack * track)
 static gboolean
 calculate_transitions (GESTimelineLayer * layer, GESFormatter * self)
 {
-  GESPitiviFormatterPrivate *priv = GES_PITIVI_FORMATTER (self)->priv;
+  printf ("we didnt do it man !\n");
 
-  make_transitions_for_track (layer, priv->tracka);
-  make_transitions_for_track (layer, priv->trackv);
+  //make_transitions_for_track (layer, priv->tracka);
+  //make_transitions_for_track (layer, priv->trackv);
 
   return TRUE;
 }
@@ -1051,7 +1051,7 @@ destroy_all (GList * list)
 
 static void
 track_object_added_cb (GESTimelineObject * object,
-    GESTrack * track, GHashTable * props_table)
+    GESTrackObject * track_object, GHashTable * props_table)
 {
   gchar *media_type = NULL;
   GList *tck_objs = NULL, *tmp = NULL;
@@ -1060,6 +1060,7 @@ track_object_added_cb (GESTimelineObject * object,
   GESPitiviFormatterPrivate *priv;
   GESFormatter *self;
   GESTrack *object_track;
+  GESTrack *track;
   gint64 start, duration;
   gboolean has_effect = FALSE;
   gint type = 0;
@@ -1069,6 +1070,9 @@ track_object_added_cb (GESTimelineObject * object,
   self = g_hash_table_lookup (props_table, (gchar *) "private");
   priv = GES_PITIVI_FORMATTER (self)->priv;
   priv->not_done--;
+  track = ges_track_object_get_track (track_object);
+
+  printf ("added\n");
 
   if (g_hash_table_lookup (props_table, "remove")) {
     goto remove;

@@ -440,6 +440,8 @@ ges_timeline_object_add_track_object (GESTimelineObject * object, GESTrackObject
   if (!trobj)
     return FALSE;
 
+  ges_track_object_set_timeline_object (trobj, object);
+
   g_object_ref (trobj);
 
   mapping = g_slice_new0 (ObjectMapping);
@@ -517,10 +519,10 @@ ges_timeline_object_add_track_object (GESTimelineObject * object, GESTrackObject
       + mapping->priority_offset);
 
   GST_DEBUG ("Returning trobj:%p", trobj);
-
-  g_signal_emit (object, ges_timeline_object_signals[TRACK_OBJECT_ADDED], 0,
-      GES_TRACK_OBJECT (trobj));
-
+  if (!GES_IS_TRACK_PARSE_LAUNCH_EFFECT (trobj)) {
+    g_signal_emit (object, ges_timeline_object_signals[TRACK_OBJECT_ADDED], 0,
+        GES_TRACK_OBJECT (trobj));
+  }
   return TRUE;
 }
 

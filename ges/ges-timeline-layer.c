@@ -315,10 +315,11 @@ void
 track_object_added_cb (GESTimelineObject * object,
     GESTrackObject * track_object, GESTimelineLayer * layer)
 {
-  g_signal_connect (G_OBJECT (track_object), "notify::start",
-      G_CALLBACK (track_object_start_changed_cb), object);
-
-  calculate_transition (track_object, object);
+  if (GES_IS_TRACK_FILESOURCE (track_object)) {
+    g_signal_connect (G_OBJECT (track_object), "notify::start",
+        G_CALLBACK (track_object_start_changed_cb), object);
+    calculate_transition (track_object, object);
+  }
 
   return;
 }
@@ -328,7 +329,9 @@ static void
 track_object_start_changed_cb (GESTrackObject * track_object,
     GParamSpec * arg G_GNUC_UNUSED, GESTimelineObject * object)
 {
-  calculate_transition (track_object, object);
+  if (GES_IS_TRACK_FILESOURCE (track_object)) {
+    calculate_transition (track_object, object);
+  }
 }
 
 void
@@ -345,13 +348,9 @@ calculate_transition (GESTrackObject * track_object, GESTimelineObject * object)
   track = ges_track_object_get_track (track_object);
   trackobjects = ges_track_get_objects (track);
   cur = g_list_find (trackobjects, track_object);
-  printf ("start : %lld\n", ges_track_object_get_start (cur->data));
   prev = cur->prev;
   next = cur->next;
   priority = ges_timeline_layer_get_priority (layer);
-
-  g_object_get (object, "priority", &priority, NULL);
-  printf ("prio : %d\n", priority);
 
   if (prev != NULL) {
     while (!GES_IS_TRACK_FILESOURCE (prev->data)) {
@@ -359,7 +358,6 @@ calculate_transition (GESTrackObject * track_object, GESTimelineObject * object)
           || GES_IS_TRACK_VIDEO_TRANSITION (prev->data)) {
         tr = GES_TIMELINE_STANDARD_TRANSITION
             (ges_track_object_get_timeline_object (prev->data));
-        printf ("we found the transition\n");
       }
       prev = prev->prev;
       if (prev == NULL) {
@@ -373,7 +371,6 @@ calculate_transition (GESTrackObject * track_object, GESTimelineObject * object)
         || GES_IS_TRACK_VIDEO_TRANSITION (next->data)) {
       tr = GES_TIMELINE_STANDARD_TRANSITION
           (ges_track_object_get_timeline_object (next->data));
-      printf ("we found the transition\n");
     }
   }
 
@@ -385,7 +382,6 @@ calculate_transition (GESTrackObject * track_object, GESTimelineObject * object)
       if (tr == NULL) {
         gint type;
         type = track->type;
-        printf ("making a new transition\n");
         tr = ges_timeline_standard_transition_new_for_nick ((gchar *)
             "crossfade");
         if (type == GES_TRACK_TYPE_AUDIO)
@@ -400,10 +396,8 @@ calculate_transition (GESTrackObject * track_object, GESTimelineObject * object)
       g_object_set (tr, "start", start, "duration",
           (prev_start + prev_duration - start), NULL);
       g_object_get (object, "priority", &priority, NULL);
-      printf ("prio after : %d\n", priority);
       ges_timeline_layer_resync_priorities (layer);
     } else if (tr != NULL) {
-      printf ("removed why u no see that ?!\n");
       ges_timeline_layer_remove_object (layer, GES_TIMELINE_OBJECT (tr));
     }
   }
