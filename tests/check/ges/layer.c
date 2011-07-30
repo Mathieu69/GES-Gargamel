@@ -62,15 +62,18 @@ GST_START_TEST (test_layer_properties)
 {
   GESTimeline *timeline;
   GESTimelineLayer *layer;
+  GESTimelineLayer *dest_layer;
   GESTrack *track;
   GESTrackObject *trackobject;
   GESTimelineObject *object;
 
   ges_init ();
 
-  /* Timeline and 1 Layer */
+  /* Timeline and 2 Layers */
   timeline = ges_timeline_new ();
   layer = (GESTimelineLayer *) ges_timeline_layer_new ();
+  dest_layer = (GESTimelineLayer *) ges_timeline_layer_new ();
+  g_object_set (dest_layer, "priority", 1, NULL);
 
   /* The default priority is 0 */
   fail_unless_equals_int (ges_timeline_layer_get_priority (layer), 0);
@@ -79,6 +82,7 @@ GST_START_TEST (test_layer_properties)
    * the timeline will take that reference. */
   fail_unless (g_object_is_floating (layer));
   fail_unless (ges_timeline_add_layer (timeline, layer));
+  fail_unless (ges_timeline_add_layer (timeline, dest_layer));
   fail_if (g_object_is_floating (layer));
 
   track = ges_track_new (GES_TRACK_TYPE_CUSTOM, GST_CAPS_ANY);
@@ -136,8 +140,11 @@ GST_START_TEST (test_layer_properties)
   gnl_object_check (ges_track_object_get_gnlobject (trackobject), 42, 51, 12,
       51, 0, TRUE);
 
+  fail_unless (ges_timeline_layer_move_object_to_layer (layer, dest_layer,
+          object));
+
   g_object_unref (trackobject);
-  fail_unless (ges_timeline_layer_remove_object (layer, object));
+  fail_unless (ges_timeline_layer_remove_object (dest_layer, object));
   fail_unless (ges_timeline_remove_track (timeline, track));
   fail_unless (ges_timeline_remove_layer (timeline, layer));
   g_object_unref (timeline);

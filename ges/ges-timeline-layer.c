@@ -404,6 +404,34 @@ calculate_transition (GESTrackObject * track_object, GESTimelineObject * object)
 }
 
 /**
+ * ges_timeline_layer_move_object_to_layer:
+ * @origin_layer : the #GESTimelineLayer to remove the object from
+ * @dest_layer : the #GESTimelineLayer to move the object to
+ * @object : the #GESTimelineObject to move
+ *
+ * Takes a ref to the @object before removing it from the @origin_layer,
+ * and then adds it to the @dest_layer.
+ * Returns: TRUE if the object was moved, FALSE otherwise.
+ */
+
+gboolean
+ges_timeline_layer_move_object_to_layer (GESTimelineLayer * origin_layer,
+    GESTimelineLayer * dest_layer, GESTimelineObject * object)
+{
+  g_object_ref (object);
+
+  if (!ges_timeline_layer_remove_object (origin_layer, object)) {
+    return FALSE;
+  }
+
+  if (!ges_timeline_layer_add_object (dest_layer, object)) {
+    return FALSE;
+  }
+
+  return TRUE;
+}
+
+/**
  * ges_timeline_layer_remove_object:
  * @layer: a #GESTimelineLayer
  * @object: the #GESTimelineObject to remove
