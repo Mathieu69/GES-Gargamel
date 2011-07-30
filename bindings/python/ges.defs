@@ -880,6 +880,17 @@
   )
 )
 
+(define-method move_object_to_layer
+  (of-object "GESTimelineLayer")
+  (c-name "ges_timeline_layer_move_object_to_layer")
+  (return-type "gboolean")
+  (parameters
+    '("GESTimelineLayer*" "dest_layer")
+    '("GESTimelineObject*" "object")
+  )
+)
+
+
 (define-method set_priority
   (of-object "GESTimelineLayer")
   (c-name "ges_timeline_layer_set_priority")
