@@ -339,9 +339,9 @@ calculate_transition (GESTrackObject * track_object, GESTimelineObject * object)
 {
   GESTrack *track;
   GList *trackobjects, *cur, *prev, *next;
-  gint priority;
+  gint priority, prev_priority;
   gint64 start, prev_start, prev_duration;
-  GESTimelineLayer *layer;
+  GESTimelineLayer *layer, *prev_layer;
   GESTimelineStandardTransition *tr = NULL;
 
   layer = ges_timeline_object_get_layer (object);
@@ -378,6 +378,15 @@ calculate_transition (GESTrackObject * track_object, GESTimelineObject * object)
     start = ges_track_object_get_start (cur->data);
     prev_start = ges_track_object_get_start (prev->data);
     prev_duration = ges_track_object_get_duration (prev->data);
+    prev_layer =
+        ges_timeline_object_get_layer (ges_track_object_get_timeline_object
+        (prev->data));
+    prev_priority = ges_timeline_layer_get_priority (prev_layer);
+
+    if (priority != prev_priority) {
+      return;
+    }
+
     if (start < prev_start + prev_duration) {
       if (tr == NULL) {
         gint type;
