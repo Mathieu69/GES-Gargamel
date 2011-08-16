@@ -34,6 +34,7 @@
 #include "ges-track-object.h"
 #include "gesmarshal.h"
 #include "stdio.h"
+#include "ges.h"
 
 G_DEFINE_TYPE (GESTrack, ges_track, GST_TYPE_BIN);
 
@@ -601,6 +602,68 @@ ges_track_get_timeline (GESTrack * track)
   g_return_val_if_fail (GES_IS_TRACK (track), NULL);
 
   return track->priv->timeline;
+}
+
+/**
+ *ges_track_get_previous_track_object:
+ * @track : a #GESTrack
+ * @tck_object : a #GESTrackObject
+ *
+ * Get the previous #GESTrackObject . Can be %NULL
+ *
+ * Returns : the previous #GESTrackObject . Can be %NULL.
+ */
+GESTrackObject *
+ges_track_get_previous_track_object (GESTrack * track,
+    GESTrackObject * tck_object)
+{
+  GList *tck_objects_list = NULL, *cur = NULL;
+
+  tck_objects_list = ges_track_get_objects (track);
+  cur = g_list_find (tck_objects_list, tck_object);
+  cur = cur->prev;
+
+  if (cur == NULL)
+    return NULL;
+
+  while (!GES_IS_TRACK_SOURCE (cur->data)) {
+    cur = cur->prev;
+    if (cur == NULL)
+      return NULL;
+  }
+
+  return GES_TRACK_OBJECT (cur->data);
+}
+
+/**
+ *ges_track_get_next_track_object:
+ * @track : a #GESTrack
+ * @tck_object : a #GESTrackObject
+ *
+ * Get the next #GESTrackObject . Can be %NULL
+ *
+ * Returns : the next #GESTrackObject . Can be %NULL.
+ */
+GESTrackObject *
+ges_track_get_next_track_object (GESTrack * track, GESTrackObject * tck_object)
+{
+  GList *tck_objects_list = NULL, *cur = NULL;
+
+  tck_objects_list = ges_track_get_objects (track);
+  cur = g_list_find (tck_objects_list, tck_object);
+
+  cur = cur->next;
+
+  if (cur == NULL)
+    return NULL;
+
+  while (!GES_IS_TRACK_SOURCE (cur->data)) {
+    cur = cur->next;
+    if (cur == NULL)
+      return NULL;
+  }
+
+  return GES_TRACK_OBJECT (cur->data);
 }
 
 /**

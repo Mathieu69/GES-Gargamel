@@ -1693,6 +1693,25 @@
   )
 )
 
+(define-method get_previous_track_object
+  (of-object "GESTrack")
+  (c-name "ges_track_get_previous_track_object")
+  (return-type "GESTrackObject*")
+  (parameters
+    '("GESTrackObject*" "tck_object")
+  )
+)
+
+(define-method get_next_track_object
+  (of-object "GESTrack")
+  (c-name "ges_track_get_next_track_object")
+  (return-type "GESTrackObject*")
+  (parameters
+    '("GESTrackObject*" "tck_object")
+  )
+)
+
+
 
 
 ;; From ges-track-image-source.h
