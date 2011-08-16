@@ -103,6 +103,7 @@ gboolean ges_track_enable_update(GESTrack * track, gboolean enabled);
 GESTrackObject * ges_track_get_previous_track_object(GESTrack * track, GESTrackObject * tck_object);
 GESTrackObject * ges_track_get_next_track_object(GESTrack * track, GESTrackObject * tck_object);
 
+GList * ges_track_get_track_objects_at_position(GESTrack * track, gint64 position);
 
 GList* ges_track_get_objects (GESTrack *track);
 
