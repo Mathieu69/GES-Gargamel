@@ -602,6 +602,40 @@ ges_track_get_timeline (GESTrack * track)
   return track->priv->timeline;
 }
 
+
+/**
+ * ges_track_get_track_objects_at_position:
+ * @track: a #GESTrack
+ * @position : a #gint64
+ *
+ * Get the #GESTrackObject s at a given position
+ *
+ * Returns: (transfer none) (element type GESTrackObject): a #GList of
+ * track objects
+ */
+GList *
+ges_track_get_track_objects_at_position (GESTrack * track, gint64 position)
+{
+  GList *track_objects = NULL, *tmp = NULL, *returned_list = NULL;
+
+  track_objects = ges_track_get_objects (track);
+
+  for (tmp = track_objects; tmp; tmp = tmp->next) {
+    if (!GES_IS_TRACK_SOURCE (tmp->data))
+      continue;
+    if (ges_track_object_get_start (tmp->data) < position) {
+      if (ges_track_object_get_start (tmp->data) +
+          ges_track_object_get_duration (tmp->data) > position) {
+        returned_list = g_list_append (returned_list, tmp->data);
+      }
+    }
+  }
+
+  g_list_free (track_objects);
+
+  return returned_list;
+}
+
 /**
  *ges_track_get_previous_track_object:
  * @track : a #GESTrack

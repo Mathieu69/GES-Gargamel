@@ -310,6 +310,37 @@ _wrap_ges_track_get_objects(PyGObject *self)
 }
 
 %%
+override ges_track_get_track_objects_at_position kwargs
+static PyObject *
+_wrap_ges_track_get_track_objects_at_position (PyGObject *self, PyObject *args, PyObject *kwargs)
+{
+    gint64 position;
+    const GList *l, *list;
+    PyObject *py_list;
+
+    g_return_val_if_fail (GES_IS_TRACK (self->obj), PyList_New(0));
+
+    if (!PyArg_ParseTuple(args, "L:GESTrackObject.get_track_objects_at_position",
+                          &position)) {
+        return NULL;
+    }
+
+    pyg_begin_allow_threads;
+    list = ges_track_get_track_objects_at_position (GES_TRACK(self->obj), position);
+    pyg_end_allow_threads;
+
+    py_list = PyList_New(0);
+    for (l = list; l; l = l->next) {
+    GESTrackObject *object = (GESTrackObject*)l->data;
+    PyObject *py_object = pygobject_new(G_OBJECT(object));
+    PyList_Append(py_list, py_object);
+    Py_DECREF(py_object);
+    }
+
+    return py_list;
+}
+
+%%
 override ges_track_object_get_child_property kwargs
 static PyObject *
 _wrap_ges_track_object_get_child_property (PyGObject *self, PyObject *args, PyObject *kwargs)
@@ -348,6 +379,7 @@ _wrap_ges_track_object_get_child_property (PyGObject *self, PyObject *args, PyOb
 
     return ret;
 }
+
 
 %%
 override ges_track_object_set_child_property kwargs

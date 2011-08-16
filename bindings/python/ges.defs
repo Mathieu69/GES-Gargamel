@@ -1700,6 +1700,14 @@
   )
 )
 
+(define-method get_track_objects_at_position
+  (of-object "GESTrack")
+  (c-name "ges_track_get_track_objects_at_position")
+  (return-type "GList*")
+  (parameters
+    '("gint64" "position")
+  )
+)
 
 
 
