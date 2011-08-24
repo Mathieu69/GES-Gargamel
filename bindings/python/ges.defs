@@ -1081,6 +1081,24 @@
   )
 )
 
+(define-method split
+  (of-object "GESTimelineObject")
+  (c-name "ges_timeline_object_split")
+  (return-type "GESTimelineObject*")
+  (parameters
+    '("gint64" "position")
+  )
+)
+
+(define-method set_speed_percentage
+  (of-object "GESTimelineObject")
+  (c-name "ges_timeline_object_set_speed_percentage")
+  (return-type "none")
+  (parameters
+    '("gint" "percentage")
+  )
+)
+
 
 
 
@@ -1946,6 +1964,15 @@
     '("const-gchar*" "first_property_name")
   )
   (varargs #t)
+)
+
+(define-method set_speed_percentage
+  (of-object "GESTrackObject")
+  (c-name "ges_track_object_set_speed_percentage")
+  (return-type "none")
+  (parameters
+    '("gint" "percentage")
+  )
 )
 
 
