@@ -1134,6 +1134,21 @@ tck_object_added_cb (GESTimelineObject * object,
   }
 }
 
+void
+ges_timeline_object_set_speed_percentage (GESTimelineObject * object,
+    gint percentage)
+{
+  GList *track_objects, *tmp;
+
+  track_objects = ges_timeline_object_get_track_objects (object);
+
+  for (tmp = track_objects; tmp; tmp = tmp->next) {
+    if (!GES_IS_TRACK_PARSE_LAUNCH_EFFECT (tmp->data)) {
+      ges_track_object_set_speed_percentage (tmp->data, percentage);
+    }
+  }
+}
+
 GESTimelineObject *
 ges_timeline_object_split (GESTimelineObject * ref_object, gint64 position)
 {

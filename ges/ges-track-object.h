@@ -207,5 +207,8 @@ void ges_track_object_set_child_property (GESTrackObject * object,
 					  const gchar * first_property_name,
 					  ...) G_GNUC_NULL_TERMINATED;
 
+void
+ges_track_object_set_speed_percentage (GESTrackObject * object, gint percentage);
+
 G_END_DECLS
 #endif /* _GES_TRACK_OBJECT */
