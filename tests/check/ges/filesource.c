@@ -48,6 +48,8 @@ GST_START_TEST (test_filesource_basic)
   trackobject =
       ges_timeline_object_create_track_object (GES_TIMELINE_OBJECT (source),
       track);
+  ges_timeline_object_add_track_object (GES_TIMELINE_OBJECT (source),
+      trackobject);
   fail_unless (trackobject == NULL);
 
   /* Make sure the track object is created for a compatible track. */
@@ -55,6 +57,8 @@ GST_START_TEST (test_filesource_basic)
   trackobject =
       ges_timeline_object_create_track_object (GES_TIMELINE_OBJECT (source),
       track);
+  ges_timeline_object_add_track_object (GES_TIMELINE_OBJECT (source),
+      trackobject);
   fail_unless (trackobject != NULL);
 
   /* The track holds a reference to the object
@@ -110,6 +114,7 @@ GST_START_TEST (test_filesource_properties)
   assert_equals_uint64 (GES_TIMELINE_OBJECT_INPOINT (object), 12);
 
   trackobject = ges_timeline_object_create_track_object (object, track);
+  ges_timeline_object_add_track_object (object, trackobject);
   fail_unless (trackobject != NULL);
   fail_unless (ges_track_object_set_track (trackobject, track));
 
@@ -174,6 +179,7 @@ GST_START_TEST (test_filesource_images)
 
   /* the returned track object should be an image source */
   trobj = ges_timeline_object_create_track_object (tlobj, v);
+  ges_timeline_object_add_track_object (tlobj, trobj);
   fail_unless (GES_IS_TRACK_IMAGE_SOURCE (trobj));
 
   /* The track holds a reference to the object
@@ -187,6 +193,7 @@ GST_START_TEST (test_filesource_images)
    * property is set true */
 
   trobj = ges_timeline_object_create_track_object (tlobj, a);
+  ges_timeline_object_add_track_object (tlobj, trobj);
   fail_unless (GES_IS_TRACK_AUDIO_TEST_SOURCE (trobj));
 
   /* The track holds a reference to the object
