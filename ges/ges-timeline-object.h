@@ -282,6 +282,9 @@ ges_timeline_object_set_top_effect_priority (GESTimelineObject *object,
 					     GESTrackEffect *effect,
 					     guint newpriority);
 
+GESTimelineObject *
+ges_timeline_object_split(GESTimelineObject * ref_object, gint64 position);
+
 G_END_DECLS
 
 #endif /* _GES_TIMELINE_OBJECT */
