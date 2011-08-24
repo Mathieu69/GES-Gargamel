@@ -876,6 +876,16 @@ ges_track_object_get_element (GESTrackObject * object)
   return object->priv->element;
 }
 
+void
+ges_track_object_set_speed_percentage (GESTrackObject * object, gint percentage)
+{
+  gint64 duration;
+
+  g_object_get (object->priv->gnlobject, "duration", &duration, NULL);
+  g_object_set (object->priv->gnlobject, "media-duration",
+      (duration * percentage) / 100, NULL);
+}
+
 /**
  * ges_track_object_set_locked:
  * @object: a #GESTrackObject

@@ -285,6 +285,10 @@ ges_timeline_object_set_top_effect_priority (GESTimelineObject *object,
 GESTimelineObject *
 ges_timeline_object_split(GESTimelineObject * ref_object, gint64 position);
 
+
+void
+ges_timeline_object_set_speed_percentage (GESTimelineObject * object, gint percentage);
+
 G_END_DECLS
 
 #endif /* _GES_TIMELINE_OBJECT */
