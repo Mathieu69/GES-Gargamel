@@ -18,8 +18,7 @@ static gboolean create_tracks (GESFormatter * self);
 static GHashTable *list_sources (GESFormatter * self);
 static gboolean parse_track_objects (GESFormatter * self);
 static gboolean parse_timeline_objects (GESFormatter * self);
-static gboolean calculate_transitions (GESTimelineLayer * layer,
-    GESFormatter * self);
+
 static void save_tracks (GESTimeline * timeline, xmlTextWriterPtr writer,
     GList * source_list);
 static GList *save_sources (GESTimelineLayer * layer, xmlTextWriterPtr writer);
@@ -34,8 +33,6 @@ void set_properties (GObject * obj, GHashTable * props_table);
 void make_source (GList * ref_list,
     GHashTable * source_table, GESFormatter * self);
 
-
-void make_transitions_for_track (GESTimelineLayer * layer, GESTrack * track);
 void layers_table_destroyer (gpointer data, gpointer data2, void *unused);
 void list_table_destroyer (gpointer data, gpointer data2, void *unused);
 void destroyer (gpointer data, gpointer data2, void *unused);
@@ -617,33 +614,25 @@ make_source (GList * ref_list, GHashTable * source_table, GESFormatter * self)
 
     if (g_strcmp0 (fac_ref, (gchar *) "effect") && a_avail && (!video)) {
       a_avail = FALSE;
-      priv->not_done++;
-      priv->not_done++;
-      g_hash_table_insert (props_table, (gchar *) "private", self);
       g_signal_connect (src, "track-object-added",
           G_CALLBACK (track_object_added_cb), props_table);
 
     } else if (g_strcmp0 (fac_ref, (gchar *) "effect") && v_avail && (video)) {
       v_avail = FALSE;
-      priv->not_done++;
-      priv->not_done++;
-      g_hash_table_insert (props_table, (gchar *) "private", self);
       g_signal_connect (src, "track-object-added",
           G_CALLBACK (track_object_added_cb), props_table);
 
     } else if (g_strcmp0 (fac_ref, (gchar *) "effect")) {
       char cCurrentPath[FILENAME_MAX], *path;
-      if ((a_avail || v_avail)) {
-        priv->not_done++;
-        priv->not_done++;
-        if (!g_hash_table_lookup (prev_props_table, (gchar *) "private")) {
-          g_hash_table_insert (prev_props_table, (gchar *) "private", self);
-        }
-        g_hash_table_insert (prev_props_table, (gchar *) "remove",
-            g_strdup (prev_media_type));
-        g_signal_connect (src, "track-object-added",
-            G_CALLBACK (track_object_added_cb), prev_props_table);
+
+      if (a_avail) {
+        ges_timeline_filesource_set_supported_formats (src,
+            GES_TRACK_TYPE_VIDEO);
+      } else if (v_avail) {
+        ges_timeline_filesource_set_supported_formats (src,
+            GES_TRACK_TYPE_AUDIO);
       }
+
       filename =
           (gchar *) g_hash_table_lookup (source_table, (gchar *) "filename");
       path = GetCurrentDir (cCurrentPath, sizeof (cCurrentPath));
@@ -657,13 +646,6 @@ make_source (GList * ref_list, GHashTable * source_table, GESFormatter * self)
         src = ges_timeline_filesource_new (filename);
       }
 
-      priv->not_done++;
-      priv->not_done++;
-      g_hash_table_insert (props_table, (gchar *) "private", self);
-      g_hash_table_insert (props_table, g_strdup ((gchar *) "transitions"),
-          g_strdup ((gchar *) "transitions"));
-      g_signal_connect (src, "track-object-added",
-          G_CALLBACK (track_object_added_cb), props_table);
       if (!video) {
         v_avail = TRUE;
         a_avail = FALSE;
@@ -724,16 +706,10 @@ make_source (GList * ref_list, GHashTable * source_table, GESFormatter * self)
     prev_props_table = props_table;
   }
 
-  if ((a_avail || v_avail)) {
-    priv->not_done++;
-    priv->not_done++;
-    if (!g_hash_table_lookup (props_table, (gchar *) "private")) {
-      g_hash_table_insert (props_table, (gchar *) "private", self);
-    }
-    g_hash_table_insert (props_table, (gchar *) "remove",
-        g_strdup (media_type));
-    g_signal_connect (src, "track-object-added",
-        G_CALLBACK (track_object_added_cb), props_table);
+  if (a_avail) {
+    ges_timeline_filesource_set_supported_formats (src, GES_TRACK_TYPE_VIDEO);
+  } else if (v_avail) {
+    ges_timeline_filesource_set_supported_formats (src, GES_TRACK_TYPE_AUDIO);
   }
   free (prio);
 }
@@ -822,101 +798,6 @@ parse_track_objects (GESFormatter * self)
   }
 
   xmlXPathFreeObject (xpathObj);
-  return TRUE;
-}
-
-static gint
-objects_start_compare (GESTrackObject * a, GESTrackObject * b)
-{
-  gint64 a_start = 0, b_start = 0;
-  a_start = ges_track_object_get_start (a);
-  b_start = ges_track_object_get_start (b);
-  if (a_start == b_start) {
-    return 0;
-  }
-  if (a_start < b_start)
-    return -1;
-  if (a_start > b_start)
-    return 1;
-  return 0;
-}
-
-
-void
-make_transitions_for_track (GESTimelineLayer * layer, GESTrack * track)
-{
-  GList *tck_objects = NULL, *tmp = NULL, *tmp_tck = NULL;
-  GList *tl_tck_objects = NULL;
-  gint64 duration, start, in_point, prev_end = 0;
-  GESTimelineStandardTransition *tr = NULL;
-  gboolean needs_offset = FALSE, had_effect = FALSE;
-  gint effect_offset = 0;
-  gint offset = 1;
-  GESTimelineObject *tl_obj;
-  gint prio = 0;
-  tck_objects = ges_track_get_objects (track);
-  tck_objects = g_list_sort (tck_objects, (GCompareFunc) objects_start_compare);
-
-  for (tmp = tck_objects; tmp; tmp = tmp->next) {
-    if (!GES_IS_TRACK_FILESOURCE (tmp->data)) {
-      continue;
-    }
-    printf ("source bordel\n");
-    tr = NULL;
-    needs_offset = TRUE;
-    g_object_get (tmp->data, "duration", &duration, NULL);
-    g_object_get (tmp->data, "start", &start, NULL);
-    g_object_get (tmp->data, "in_point", &in_point, NULL);
-
-    if (start < prev_end) {
-      tr = ges_timeline_standard_transition_new_for_nick ((char *)
-          "crossfade");
-      g_object_set (tr, "start", (gint64) start, "duration",
-          (gint64) prev_end - start, "in_point", (gint64) 0, NULL);
-      if (track->type == GES_TRACK_TYPE_AUDIO)
-        ges_timeline_standard_transition_set_audio_only (tr, TRUE);
-      else {
-        ges_timeline_standard_transition_set_video_only (tr, TRUE);
-      }
-      ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (tr));
-    }
-    tl_obj = ges_track_object_get_timeline_object (tmp->data);
-    if (track->type == GES_TRACK_TYPE_VIDEO) {
-      tl_tck_objects = ges_timeline_object_get_track_objects (tl_obj);
-      for (tmp_tck = tl_tck_objects; tmp_tck; tmp_tck = tmp_tck->next) {
-        if (GES_IS_TRACK_PARSE_LAUNCH_EFFECT (tmp_tck->data)) {
-          had_effect = TRUE;
-          needs_offset = FALSE;
-          effect_offset++;
-        }
-      }
-      g_list_free (tl_tck_objects);
-      if (had_effect && needs_offset) {
-        offset++;
-        had_effect = FALSE;
-      }
-      g_object_set (tl_obj, "priority", offset, NULL);
-    }
-    if (tr && track->type == GES_TRACK_TYPE_VIDEO)
-      g_object_set (tr, "priority", effect_offset, NULL);
-    g_object_get (tl_obj, "priority", &prio, NULL);
-    if (prio == 0)
-      g_object_set (tl_obj, "priority", offset + effect_offset, NULL);
-    prev_end = duration + start;
-    if (had_effect)
-      offset++;
-  }
-  g_list_free (tck_objects);
-}
-
-static gboolean
-calculate_transitions (GESTimelineLayer * layer, GESFormatter * self)
-{
-  printf ("we didnt do it man !\n");
-
-  //make_transitions_for_track (layer, priv->tracka);
-  //make_transitions_for_track (layer, priv->trackv);
-
   return TRUE;
 }
 
@@ -1055,32 +936,13 @@ track_object_added_cb (GESTimelineObject * object,
 {
   gchar *media_type = NULL;
   GList *tck_objs = NULL, *tmp = NULL;
-  gint64 dur_a, dur_v;
-  GList *layers = NULL;
-  GESPitiviFormatterPrivate *priv;
-  GESFormatter *self;
   GESTrack *object_track;
-  GESTrack *track;
   gint64 start, duration;
   gboolean has_effect = FALSE;
   gint type = 0;
   tck_objs = ges_timeline_object_get_track_objects (object);
   media_type =
       (gchar *) g_hash_table_lookup (props_table, (gchar *) "media_type");
-  self = g_hash_table_lookup (props_table, (gchar *) "private");
-  priv = GES_PITIVI_FORMATTER (self)->priv;
-  priv->not_done--;
-  track = ges_track_object_get_track (track_object);
-
-  printf ("added\n");
-
-  if (g_hash_table_lookup (props_table, "remove")) {
-    goto remove;
-  }
-
-  if (g_hash_table_lookup (props_table, "transitions")) {
-    goto remove;
-  }
 
   for (tmp = tck_objs; tmp; tmp = tmp->next) {
     object_track = ges_track_object_get_track (tmp->data);
@@ -1111,42 +973,6 @@ track_object_added_cb (GESTimelineObject * object,
         ges_track_object_set_locked (tmp->data, TRUE);
       }
     }
-  }
-
-remove:
-  for (tmp = tck_objs; tmp; tmp = tmp->next) {
-    GESTrack *track;
-    if GES_IS_TRACK_PARSE_LAUNCH_EFFECT
-      (tmp->data) {
-      continue;
-      }
-    track = ges_track_object_get_track (tmp->data);
-    if ((track->type == GES_TRACK_TYPE_AUDIO &&
-            (!g_strcmp0 (media_type, (gchar *) "pitivi.stream.VideoStream"))) ||
-        (track->type == GES_TRACK_TYPE_VIDEO &&
-            (!g_strcmp0 (media_type, (gchar *) "pitivi.stream.AudioStream")))) {
-      if (g_hash_table_lookup (props_table, "remove")) {
-        ges_timeline_object_release_track_object (object, tmp->data);
-        ges_track_remove_object (track, tmp->data);
-      }
-    }
-  }
-  if (!priv->not_done && priv->parsed) {
-    layers = ges_timeline_get_layers (priv->timeline);
-    for (tmp = layers; tmp; tmp = tmp->next) {
-      if (ges_timeline_layer_get_priority (tmp->data) != 99) {
-        calculate_transitions (tmp->data, self);
-      } else {
-        g_object_get (priv->trackv, "duration", &dur_v, NULL);
-        g_object_get (priv->tracka, "duration", &dur_a, NULL);
-        if (dur_a > dur_v) {
-          g_object_set (priv->background, "duration", dur_a, NULL);
-        } else {
-          g_object_set (priv->background, "duration", dur_v, NULL);
-        }
-      }
-    }
-    g_list_free (layers);
   }
 }
 
