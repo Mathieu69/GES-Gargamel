@@ -43,6 +43,10 @@ static void track_object_start_changed_cb (GESTrackObject * track_object,
 void calculate_transition (GESTrackObject * track_object,
     GESTimelineObject * object);
 
+void
+timeline_object_height_changed_cb (GESTimelineObject * obj,
+    GESTrackEffect * tr_eff, GESTimelineObject * second_obj);
+
 G_DEFINE_TYPE (GESTimelineLayer, ges_timeline_layer, G_TYPE_INITIALLY_UNOWNED);
 
 struct _GESTimelineLayerPrivate
@@ -277,9 +281,14 @@ track_get_by_layer (GESTrackObject * track_object)
     layer = ges_timeline_object_get_layer (tl_obj);
     compared_priority = ges_timeline_layer_get_priority (layer);
     if (compared_priority == priority) {
+      g_object_ref (tmp->data);
       return_list = g_list_append (return_list, tmp->data);
     }
   }
+
+  for (tmp = tck_objects_list; tmp; tmp = tmp->next)
+    g_object_unref (tmp->data);
+  g_list_free (tck_objects_list);
   g_object_unref (layer);
   return return_list;
 }
@@ -363,6 +372,14 @@ track_object_added_cb (GESTimelineObject * object,
   return;
 }
 
+void
+timeline_object_height_changed_cb (GESTimelineObject * obj,
+    GESTrackEffect * tr_eff, GESTimelineObject * second_obj)
+{
+  gint priority, height;
+  g_object_get (obj, "height", &height, "priority", &priority, NULL);
+  g_object_set (second_obj, "priority", priority + height, NULL);
+}
 
 static void
 track_object_start_changed_cb (GESTrackObject * track_object,
@@ -371,15 +388,15 @@ track_object_start_changed_cb (GESTrackObject * track_object,
   if (GES_IS_TRACK_SOURCE (track_object)) {
     calculate_transition (track_object, object);
   }
+  g_object_unref (track_object);
 }
 
 void
 calculate_transition (GESTrackObject * track_object, GESTimelineObject * object)
 {
-  GList *list, *cur, *compared, *compared_next;
+  GList *list, *cur, *compared, *compared_next, *tmp;
 
   list = track_get_by_layer (track_object);
-
   cur = g_list_find (list, track_object);
 
   compared = cur->prev;
@@ -409,6 +426,10 @@ next:
   }
 
   compare (compared_next, track_object, FALSE);
+
+  for (tmp = list; tmp; tmp = tmp->next)
+    g_object_unref (tmp->data);
+  g_list_free (list);
 }
 
 
@@ -421,7 +442,7 @@ compare (GList * compared, GESTrackObject * track_object, gboolean ahead)
   GESTimelineStandardTransition *tr = NULL;
   GESTrack *track;
   GESTimelineLayer *layer;
-  GESTimelineObject *object;
+  GESTimelineObject *object, *first_object, *second_object;
   gint priority;
 
   object = ges_track_object_get_timeline_object (track_object);
@@ -487,6 +508,7 @@ compare (GList * compared, GESTrackObject * track_object, gboolean ahead)
   }
 
   if (tr == NULL) {
+    gint height;
     tr = ges_timeline_standard_transition_new_for_nick ((gchar *) "crossfade");
     track = ges_track_object_get_track (track_object);
 
@@ -496,22 +518,31 @@ compare (GList * compared, GESTrackObject * track_object, gboolean ahead)
       ges_timeline_standard_transition_set_video_only (tr, TRUE);
 
     ges_timeline_layer_add_object (layer, GES_TIMELINE_OBJECT (tr));
+
+    if (ahead) {
+      first_object = ges_track_object_get_timeline_object (compared->data);
+      second_object = object;
+    } else {
+      second_object = ges_track_object_get_timeline_object (compared->data);
+      first_object = object;
+    }
+
+    g_object_get (first_object, "priority", &priority, "height", &height, NULL);
+    g_object_set (second_object, "priority", priority + height, NULL);
+    g_signal_connect (first_object, "notify::height",
+        (GCallback) timeline_object_height_changed_cb, second_object);
   }
 
   if (ahead) {
     g_object_set (tr, "start", start + inpoint, "duration",
         compared_duration + compared_start - (start + inpoint), NULL);
-    g_object_get (object, "priority", &priority, NULL);
-    g_object_set (object, "priority", priority + 3, NULL);
   } else {
     g_object_set (tr, "start", compared_start, "duration",
         start + duration - compared_start, NULL);
-    object = ges_track_object_get_timeline_object (compared->data);
-    g_object_get (object, "priority", &priority, NULL);
-    g_object_set (object, "priority", priority + 3, NULL);
   }
 
 clean:
+  g_object_unref (track_object);
   g_object_unref (layer);
 }
 
