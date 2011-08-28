@@ -43,6 +43,10 @@
 struct _GESTimelineStandardTransitionPrivate
 {
   GSList *track_video_transitions;
+  /* Dummy variable */
+  void *nothing;
+  gboolean video_only;
+  gboolean audio_only;
 };
 
 enum
@@ -135,7 +139,6 @@ ges_timeline_standard_transition_class_init (GESTimelineStandardTransitionClass
           GES_VIDEO_STANDARD_TRANSITION_TYPE_CROSSFADE,
           G_PARAM_READWRITE | G_PARAM_CONSTRUCT));
 
-
   timobj_class->create_track_object = ges_tl_transition_create_track_object;
   timobj_class->need_fill_track = FALSE;
   timobj_class->track_object_added =
@@ -192,17 +195,28 @@ ges_tl_transition_create_track_object (GESTimelineObject * obj,
   GESTimelineStandardTransition *transition =
       (GESTimelineStandardTransition *) obj;
   GESTrackObject *res;
+  GESTimelineStandardTransitionPrivate *priv =
+      GES_TIMELINE_STANDARD_TRANSITION (obj)->priv;
 
   GST_DEBUG ("Creating a GESTrackTransition");
 
   if (track->type == GES_TRACK_TYPE_VIDEO) {
-    res = GES_TRACK_OBJECT (ges_track_video_transition_new ());
-    ges_track_video_transition_set_transition_type ((GESTrackVideoTransition *)
-        res, transition->vtype);
+    if (priv->audio_only) {
+      res = NULL;
+    } else {
+      res = GES_TRACK_OBJECT (ges_track_video_transition_new ());
+      ges_track_video_transition_set_transition_type ((GESTrackVideoTransition
+              *)
+          res, transition->vtype);
+    }
   }
 
   else if (track->type == GES_TRACK_TYPE_AUDIO) {
-    res = GES_TRACK_OBJECT (ges_track_audio_transition_new ());
+    if (priv->video_only) {
+      res = NULL;
+    } else {
+      res = GES_TRACK_OBJECT (ges_track_audio_transition_new ());
+    }
   }
 
   else {
@@ -227,6 +241,40 @@ ges_timeline_standard_transition_new (GESVideoStandardTransitionType vtype)
 {
   return g_object_new (GES_TYPE_TIMELINE_STANDARD_TRANSITION, "vtype",
       (gint) vtype, NULL);
+}
+
+/**
+ * ges_timeline_standard_transtion_set_video_only:
+ * @self: the #GESTimelineStandardTransition on which to prevent the creation
+ * of the audio track object
+ * @mute: %TRUE to prevent creation, %FALSE to let it be
+ *
+ * Sets whether the audio track object of this timeline object is created or not.
+ *
+ */
+
+void
+ges_timeline_standard_transition_set_video_only (GESTimelineStandardTransition *
+    self, gboolean video_only)
+{
+  self->priv->video_only = video_only;
+}
+
+/**
+ * ges_timeline_standard_transtion_set_video_only:
+ * @self: the #GESTimelineStandardTransition on which to prevent the creation
+ * of the audio track object
+ * @mute: %TRUE to prevent creation, %FALSE to let it be
+ *
+ * Sets whether the audio track object of this timeline object is created or not.
+ *
+ */
+
+void
+ges_timeline_standard_transition_set_audio_only (GESTimelineStandardTransition *
+    self, gboolean audio_only)
+{
+  self->priv->audio_only = audio_only;
 }
 
 /**
