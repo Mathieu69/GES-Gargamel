@@ -20,6 +20,8 @@
 #include <ges/ges.h>
 #include <gst/check/gstcheck.h>
 #include <string.h>
+#include <unistd.h>
+#define GetCurrentDir getcwd
 
 #define KEY_FILE_START {\
   if (cmp) g_key_file_free (cmp);\
@@ -262,13 +264,11 @@ ges_objs_equal (GObject * a, GObject * b)
     return TRUE;
 
   at = G_TYPE_FROM_INSTANCE (a);
-
   fail_unless (at == G_TYPE_FROM_INSTANCE (b));
 
   typename = (gchar *) g_type_name (at);
 
   /* compare every readable property */
-
   klass = G_OBJECT_GET_CLASS (a);
   props = g_object_class_list_properties (klass, &n_props);
 
@@ -299,7 +299,6 @@ ges_objs_equal (GObject * a, GObject * b)
         goto fail;
       }
     }
-
     g_value_init (&av, (*iter)->value_type);
     g_value_init (&bv, (*iter)->value_type);
 
@@ -308,15 +307,13 @@ ges_objs_equal (GObject * a, GObject * b)
 
     g_object_get_property (a, (*iter)->name, &av);
     g_object_get_property (b, (*iter)->name, &bv);
-
     if (g_param_values_cmp (*iter, &av, &bv) != 0) {
       const gchar *a_str, *b_str;
 
       a_str = gst_value_serialize (&av);
       b_str = gst_value_serialize (&bv);
-
-      CMP_FAIL (b, "%s's %p and %p differ by property %s (%s != %s)",
-          typename, a, b, (*iter)->name, a_str, b_str);
+      CMP_FAIL (b, "%s's %p and %p differ by property %s (%s != %s)", typename,
+          a, b, (*iter)->name, a_str, b_str);
 
       goto fail;
     }
@@ -324,7 +321,6 @@ ges_objs_equal (GObject * a, GObject * b)
     g_value_unset (&av);
     g_value_unset (&bv);
   }
-
   ret = TRUE;
 
 fail:
@@ -348,7 +344,6 @@ ges_layers_equal (GESTimelineLayer * a, GESTimelineLayer * b)
 
   if (!ges_objs_equal (G_OBJECT (a), G_OBJECT (b)))
     return FALSE;
-
   a_objs = ges_timeline_layer_get_objects (a);
   b_objs = ges_timeline_layer_get_objects (b);
 
@@ -382,7 +377,6 @@ static gboolean
 ges_timelines_equal (GESTimeline * a, GESTimeline * b)
 {
   GList *a_tracks, *b_tracks, *a_iter, *b_iter, *a_layers, *b_layers;
-
   gboolean ret = FALSE;
   guint i;
 
@@ -390,7 +384,6 @@ ges_timelines_equal (GESTimeline * a, GESTimeline * b)
     CMP_FAIL (b, "%p and %p are not of the same type");
     return FALSE;
   }
-
   a_tracks = ges_timeline_get_tracks (a);
   b_tracks = ges_timeline_get_tracks (b);
   a_layers = ges_timeline_get_layers (a);
@@ -570,7 +563,6 @@ GST_START_TEST (test_keyfile_load)
 {
   GESTimeline *timeline = NULL, *expected = NULL;
   GESFormatter *formatter;
-
   ges_init ();
 
   /* setup timeline */
@@ -604,7 +596,8 @@ GST_START_TEST (test_keyfile_load)
       SIMPLE_LAYER_OBJECT ((GES_TYPE_TIMELINE_TEST_SOURCE), -1,
           "duration", (guint64) 2 * GST_SECOND);
 
-    } LAYER_END;
+    }
+    LAYER_END;
 
     LAYER_BEGIN (1) {
 
@@ -613,13 +606,58 @@ GST_START_TEST (test_keyfile_load)
           "duration", (guint64) GST_SECOND, "priority", 2, "text",
           "the quick brown fox");
 
-    } LAYER_END;
+    }
+    LAYER_END;
 
-  } TIMELINE_END;
+  }
+  TIMELINE_END;
 
   TIMELINE_COMPARE (timeline, expected);
 
   /* tear-down */
+  g_object_unref (formatter);
+  g_object_unref (timeline);
+  g_object_unref (expected);
+}
+
+GST_END_TEST;
+
+GST_START_TEST (test_pitivi_file_load)
+{
+  GESFormatter *formatter;
+  GESTimeline *timeline, *expected;
+  GMainLoop *mainloop;
+  char cCurrentPath[FILENAME_MAX];
+  char *a;
+  gchar *uri, *save_uri;
+
+  /*create the expected timeline */
+  timeline = ges_timeline_new ();
+  mainloop = g_main_loop_new (NULL, FALSE);
+  expected = ges_timeline_new ();
+
+  /* create the timeline from formatter */
+  formatter = GES_FORMATTER (ges_pitivi_formatter_new ());
+  a = GetCurrentDir (cCurrentPath, sizeof (cCurrentPath));
+  uri = g_strconcat (a, "/test.xptv", NULL);
+  save_uri = g_strconcat (a, "/testsave.xptv", NULL);
+
+  ges_formatter_load_from_uri (formatter, timeline, uri);
+  g_timeout_add (1000, (GSourceFunc) g_main_loop_quit, mainloop);
+  g_main_loop_run (mainloop);
+
+  formatter = GES_FORMATTER (ges_pitivi_formatter_new ());
+  ges_formatter_save_to_uri (formatter, timeline, save_uri);
+  formatter = GES_FORMATTER (ges_pitivi_formatter_new ());
+  ges_formatter_load_from_uri (formatter, expected, uri);
+  g_timeout_add (1000, (GSourceFunc) g_main_loop_quit, mainloop);
+  g_main_loop_run (mainloop);
+
+  /* compare the two timelines and fail test if they are different */
+  TIMELINE_COMPARE (expected, timeline);
+  g_free (uri);
+  g_free (save_uri);
+  g_main_loop_unref (mainloop);
   g_object_unref (formatter);
   g_object_unref (timeline);
   g_object_unref (expected);
@@ -635,7 +673,6 @@ GST_START_TEST (test_keyfile_identity)
 
   GESTimeline *orig = NULL, *serialized = NULL;
   GESFormatter *formatter;
-
   ges_init ();
 
   formatter = GES_FORMATTER (ges_keyfile_formatter_new ());
@@ -679,9 +716,11 @@ GST_START_TEST (test_keyfile_identity)
           "freq", (gdouble) 600,
           "volume", 1.0, "vpattern", GES_VIDEO_TEST_PATTERN_RED);
 
-    } LAYER_END;
+    }
+    LAYER_END;
 
-  } TIMELINE_END;
+  }
+  TIMELINE_END;
 
   serialized = ges_timeline_new ();
 
@@ -697,6 +736,8 @@ GST_START_TEST (test_keyfile_identity)
 
 GST_END_TEST;
 
+
+
 static Suite *
 ges_suite (void)
 {
@@ -708,6 +749,7 @@ ges_suite (void)
   tcase_add_test (tc_chain, test_keyfile_save);
   tcase_add_test (tc_chain, test_keyfile_load);
   tcase_add_test (tc_chain, test_keyfile_identity);
+  tcase_add_test (tc_chain, test_pitivi_file_load);
 
   return s;
 }
