@@ -467,7 +467,7 @@ compare (GList * compared, GESTrackObject * track_object, gboolean ahead)
         }
         }
     }
-    if (compared_start + compared_duration <= start + inpoint) {
+    if (compared_start + compared_duration <= start) {
       if (tr) {
         ges_timeline_layer_remove_object (layer, GES_TIMELINE_OBJECT (tr));
       }
@@ -533,8 +533,8 @@ compare (GList * compared, GESTrackObject * track_object, gboolean ahead)
   }
 
   if (ahead) {
-    g_object_set (tr, "start", start + inpoint, "duration",
-        compared_duration + compared_start - (start + inpoint), NULL);
+    g_object_set (tr, "start", start, "duration",
+        compared_duration + compared_start - start, NULL);
   } else {
     g_object_set (tr, "start", compared_start, "duration",
         start + duration - compared_start, NULL);
