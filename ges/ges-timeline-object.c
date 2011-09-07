@@ -1177,7 +1177,8 @@ ges_timeline_object_split (GESTimelineObject * ref_object, gint64 position)
       g_object_set (tmp->data, "duration",
           duration - (duration + start - position), NULL);
       g_object_set (new_object, "start", position, "in-point",
-          duration - (duration + start - position), NULL);
+          duration - (duration + start - position), "duration",
+          (duration + start - position), NULL);
       g_object_set (ref_object, "duration",
           duration - (duration + start - position), NULL);
     }
