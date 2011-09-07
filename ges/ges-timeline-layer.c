@@ -298,7 +298,6 @@ ges_timeline_layer_add_object (GESTimelineLayer * layer,
 {
   GESTimelineLayer *tl_obj_layer;
   guint32 maxprio, minprio, prio;
-  GList *tmp;
 
   GST_DEBUG ("layer:%p, object:%p", layer, object);
 
@@ -318,12 +317,9 @@ ges_timeline_layer_add_object (GESTimelineLayer * layer,
       (GCompareFunc) objects_start_compare);
 
   if (layer->priv->auto_transition) {
-
-    tmp = g_list_find (layer->priv->objects_start, object);
-
-    if (GES_IS_TIMELINE_SOURCE (tmp->data)
+    if (GES_IS_TIMELINE_SOURCE (object)
         && (ges_timeline_layer_get_priority (layer) != 99)) {
-      g_signal_connect (G_OBJECT (tmp->data), "track-object-added",
+      g_signal_connect (G_OBJECT (object), "track-object-added",
           G_CALLBACK (track_object_added_cb), layer);
     }
   }
@@ -367,7 +363,6 @@ track_object_added_cb (GESTimelineObject * object,
   }
 
   g_object_unref (layer);
-  g_object_unref (track_object);
   return;
 }
 
@@ -387,7 +382,6 @@ track_object_start_changed_cb (GESTrackObject * track_object,
   if (GES_IS_TRACK_SOURCE (track_object)) {
     calculate_transition (track_object, object);
   }
-  g_object_unref (track_object);
 }
 
 void
